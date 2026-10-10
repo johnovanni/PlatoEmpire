@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PlatoEmpire/PlatoEmpire.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PlatoEmpire.Tests/PlatoEmpire.Tests.csproj" />
+  </Folder>
+</Solution>

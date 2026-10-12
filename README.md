@@ -1,5 +1,7 @@
 # EMPIRE — a PLATO recreation (C# / WPF)
 
+[![Tests](https://github.com/johnovanni/PlatoEmpire/actions/workflows/tests.yml/badge.svg)](https://github.com/johnovanni/PlatoEmpire/actions/workflows/tests.yml)
+
 A single-player recreation of **Empire** (the `empire` lesson on the CDC PLATO system, John Daleske, 1973):
 real-time interstellar war between the Federation, Klingons, Romulans and Orions, rendered in PLATO plasma-orange.
 

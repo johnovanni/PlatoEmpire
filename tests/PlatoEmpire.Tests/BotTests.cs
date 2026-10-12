@@ -1,3 +1,4 @@
+using System.Windows;
 using PlatoEmpire.Game;
 
 namespace PlatoEmpire.Tests;
@@ -61,6 +62,80 @@ public class BotTests
 
         Assert.Equal(BotMode.Fight, bot.Brain!.Mode);
         Assert.True(w.Player.Hull > 0 || w.Torpedoes.Count > 0 || w.Player.Deaths > 0, "bot never fired");
+    }
+
+    static double EdgeDistance(Vector p) =>
+        Math.Min(Math.Min(p.X, p.Y), Math.Min(GameWorld.GalaxySize - p.X, GameWorld.GalaxySize - p.Y));
+
+    [Theory]
+    [InlineData("west")]
+    [InlineData("east")]
+    [InlineData("north")]
+    [InlineData("south")]
+    public void Bot_fighting_a_target_on_the_edge_stays_off_the_edge(string wall)
+    {
+        var w = TestWorld.Quiet();
+        var bot = TestWorld.Enemy(w);
+        bot.Brain = new BotBrain(w, bot, seed: 1);
+        double size = GameWorld.GalaxySize, mid = size / 2;
+        var (edge, inward) = wall switch
+        {
+            "west" => (new Vector(60, mid), new Vector(1, 0)),
+            "east" => (new Vector(size - 60, mid), new Vector(-1, 0)),
+            "north" => (new Vector(mid, 60), new Vector(0, 1)),
+            _ => (new Vector(mid, size - 60), new Vector(0, -1)),
+        };
+        TestWorld.Park(bot, edge + inward * 1500);
+
+        double closest = double.MaxValue;
+        for (int i = 0; i < GameWorld.TicksPerSecond * 60; i++)
+        {
+            // Pin the target against the wall and keep it alive so the bot keeps fighting there.
+            w.Player.Pos = edge;
+            w.Player.Hull = 0;
+            w.Step();
+            if (bot.Alive) closest = Math.Min(closest, EdgeDistance(bot.Pos));
+        }
+
+        Assert.Equal(BotMode.Fight, bot.Brain!.Mode);
+        Assert.True(closest >= BotBrain.EdgeBuffer, $"bot came within {closest:0} units of the {wall} edge");
+    }
+
+    [Fact]
+    public void Bots_never_pin_themselves_against_the_edge_in_a_full_game()
+    {
+        var w = new GameWorld(new GameSettings { Seed = 11, PlayerAutopilot = true, Opponents = 3, ShipsPerEmpire = 6, AlliedBots = 5, Difficulty = 5 });
+        double closest = double.MaxValue;
+
+        for (int i = 0; i < GameWorld.TicksPerSecond * 60 * 5; i++)
+        {
+            w.Step();
+            foreach (var s in w.Ships.Where(s => s.Alive)) closest = Math.Min(closest, EdgeDistance(s.Pos));
+        }
+
+        Assert.True(closest >= BotBrain.EdgeBuffer, $"a bot came within {closest:0} units of the edge");
+    }
+
+    [Theory]
+    [InlineData(5000, 5000, 270)]   // open space
+    [InlineData(300, 5000, 0)]      // close to the west edge but running parallel to it
+    [InlineData(3000, 5000, 270)]   // heading west but the edge is still far off
+    public void Edge_avoidance_leaves_safe_courses_alone(double x, double y, double course) =>
+        Assert.Equal(course, BotBrain.AvoidEdges(new Vector(x, y), course, 16));
+
+    [Theory]
+    [InlineData(400, 5000, 270)]    // straight at the west edge
+    [InlineData(9600, 5000, 90)]    // straight at the east edge
+    [InlineData(5000, 400, 0)]      // straight at the north edge
+    [InlineData(5000, 9600, 180)]   // straight at the south edge
+    [InlineData(400, 400, 315)]     // into the north-west corner
+    public void Edge_avoidance_turns_ships_away_from_an_approaching_edge(double x, double y, double course)
+    {
+        var pos = new Vector(x, y);
+        double avoided = BotBrain.AvoidEdges(pos, course, 16);
+
+        var toCenter = Geo.AngleOf(new Vector(GameWorld.GalaxySize / 2, GameWorld.GalaxySize / 2) - pos);
+        Assert.True(Math.Abs(Geo.Diff(avoided, toCenter)) < 90, $"new course {avoided:0} still heads out of the galaxy");
     }
 
     [Fact]

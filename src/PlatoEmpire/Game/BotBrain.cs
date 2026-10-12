@@ -140,9 +140,11 @@ public sealed class BotBrain
 
         Mode = BotMode.Patrol;
         var enemyPlanets = w.Planets.Where(pl => pl.Owner != me.Team).ToList();
-        patrol = enemyPlanets.Count > 0
+        var spot = enemyPlanets.Count > 0
             ? enemyPlanets[rng.Next(enemyPlanets.Count)].Pos + Geo.Dir(rng.Next(360)) * 600
             : new Vector(rng.Next(1000, 9000), rng.Next(1000, 9000));
+        // Patrol points near the edge would be unreachable once edge avoidance turns the ship away.
+        patrol = new Vector(Math.Clamp(spot.X, 1000, GameWorld.GalaxySize - 1000), Math.Clamp(spot.Y, 1000, GameWorld.GalaxySize - 1000));
     }
 
     Ship? PickEnemy()
@@ -226,6 +228,32 @@ public sealed class BotBrain
 
         if (Mode != BotMode.Fight && threat != null && td < 900) TryShoot(threat, td);
         if (p.Dodges && torp != null && me.Orbiting == null) Dodge(torp);
+
+        // Applied last so it overrides every other steering decision, including dodges.
+        if (me.Orbiting == null)
+            w.SetCourse(me, AvoidEdges(me.Pos, me.DesiredHeading, Math.Max(me.Warp, me.DesiredWarp) * GameWorld.WarpUnit));
+    }
+
+    /// <summary>How close to the edge of the galaxy a bot is willing to fly.</summary>
+    public const double EdgeBuffer = 150;
+
+    /// <summary>
+    /// Looks ahead along <paramref name="course"/> (further at higher <paramref name="speed"/>, in units per tick)
+    /// and, if that point would come within <see cref="EdgeBuffer"/> of the edge, returns a course back toward
+    /// open space instead. Courses that run parallel to the edge or stop short of it are left unchanged.
+    /// </summary>
+    public static double AvoidEdges(Vector pos, double course, double speed)
+    {
+        const double size = GameWorld.GalaxySize;
+        double lookahead = 250 + speed * 25;
+        var ahead = pos + Geo.Dir(course) * lookahead;
+        if (ahead.X >= EdgeBuffer && ahead.X <= size - EdgeBuffer && ahead.Y >= EdgeBuffer && ahead.Y <= size - EdgeBuffer)
+            return course;
+
+        // Pull the look-ahead point in far enough that the new course points back inward on every offending axis.
+        double inner = EdgeBuffer + lookahead;
+        var safe = new Vector(Math.Clamp(ahead.X, inner, size - inner), Math.Clamp(ahead.Y, inner, size - inner));
+        return Geo.AngleOf(safe - pos);
     }
 
     void Fight()

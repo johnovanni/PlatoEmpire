@@ -109,6 +109,18 @@ public sealed record GameMessage(string Text, Team? Team, int Tick);
 
 public enum GameResult { None, Victory, Defeat }
 
+/// <summary>
+/// Fleet size versus worlds held (compared with the empire's starting count). In every rule, ships already
+/// flying are never removed; the rule only decides which lost ships are replaced and whether new ones are built.
+/// </summary>
+public enum FleetRule
+{
+    /// <summary>Every lost ship is replaced; fleets never change size.</summary>
+    Fixed,
+    /// <summary>The limit tracks worlds held in both directions; shipyards build new ships up to it.</summary>
+    ScaleWithWorlds,
+}
+
 public sealed class GameSettings
 {
     public Team PlayerTeam { get; set; } = Team.Federation;
@@ -120,6 +132,8 @@ public sealed class GameSettings
     public int ConquestPercent { get; set; } = 60;
     /// <summary>How long the conquest share must be held continuously.</summary>
     public int ConquestHoldSeconds { get; set; } = 30;
+    /// <summary>How an empire's fleet size responds to the worlds it holds.</summary>
+    public FleetRule FleetRule { get; set; } = FleetRule.Fixed;
     public int? Seed { get; set; }
     public bool PlayerAutopilot { get; set; }   // used by --selftest
 

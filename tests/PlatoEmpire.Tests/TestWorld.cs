@@ -17,6 +17,8 @@ internal static class TestWorld
             ShipsPerEmpire = 1,
             AlliedBots = 0,
             Difficulty = 3,
+            // Pinned so other tests are never disturbed by ships being built or held back, whatever the default.
+            FleetRule = FleetRule.Fixed,
         };
         configure?.Invoke(settings);
         return new GameWorld(settings);

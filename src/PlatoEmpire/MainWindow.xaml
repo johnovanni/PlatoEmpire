@@ -129,6 +129,8 @@
                             <WrapPanel x:Name="AlliesPanel"/>
                             <TextBlock Style="{StaticResource Heading}" Text="VICTORY: HOLD THIS SHARE OF THE GALAXY FOR 30s"/>
                             <WrapPanel x:Name="ConquestPanel"/>
+                            <TextBlock Style="{StaticResource Heading}" Text="FLEET SIZE VS. WORLDS HELD"/>
+                            <WrapPanel x:Name="FleetLimitPanel"/>
                         </StackPanel>
                     </Grid>
 

@@ -33,6 +33,9 @@ public partial class MainWindow : Window
         "  defenders reach zero your next army captures the planet. Planets shoot at enemy ships,\n" +
         "  and orbiting your own planets refuels and repairs you. Destroyed ships respawn at a\n" +
         "  friendly world - an empire with no worlds and no ships has fallen.\n" +
+        "  With GROW & SHRINK fleets (a setup option), fleet size follows the worlds you hold: lose\n" +
+        "  worlds and lost ships aren't replaced; gain worlds and your shipyards build new ships.\n" +
+        "  Your own ship always returns, but counts toward your empire's limit.\n" +
         "  WIN by toppling every rival, or by holding the conquest share of all worlds (chosen at\n" +
         "  setup) for 30 seconds. Rivals can win the same way - break their grip if they get close.\n\n" +
         "                                (click or press any key to close)";
@@ -87,6 +90,9 @@ public partial class MainWindow : Window
         AddChoices(ConquestPanel, "conquest",
             new[] { ("60%", 60), ("75%", 75), ("90%", 90), ("OFF - ELIMINATION ONLY", 0) },
             setup.ConquestPercent, pct => setup.ConquestPercent = pct);
+        AddChoices(FleetLimitPanel, "fleet",
+            new[] { ("FIXED (ORIGINAL)", FleetRule.Fixed), ("GROW & SHRINK", FleetRule.ScaleWithWorlds) },
+            setup.FleetRule, rule => setup.FleetRule = rule);
         AddChoices(SetupDiffPanel, "sdiff",
             DifficultyProfile.Levels.Select(d => ($"{d.Level} {d.Name.ToUpperInvariant()}", d.Level)),
             setup.Difficulty, level =>
@@ -278,7 +284,9 @@ public partial class MainWindow : Window
     {
         if (world == null) return;
         ScoreText.Inlines.Clear();
-        ScoreText.Inlines.Add(new Run("EMPIRE        WORLDS  SHIPS  ARMIES\n") { Foreground = Palette.PlasmaDim });
+        ScoreText.Inlines.Add(new Run(world.Settings.FleetRule != FleetRule.Fixed
+            ? "EMPIRE        WORLDS  SHIPS/MAX ARMIES\n"
+            : "EMPIRE        WORLDS  SHIPS  ARMIES\n") { Foreground = Palette.PlasmaDim });
         foreach (var team in RaceStats.Empires.Where(world.ActiveTeams.Contains).Append(Team.Neutral))
         {
             var r = RaceStats.For(team);
@@ -289,7 +297,7 @@ public partial class MainWindow : Window
                 ? $"{r.Name.ToUpperInvariant(),-13} -- FALLEN --"
                 : team == Team.Neutral
                     ? $"{r.Name.ToUpperInvariant(),-13} {worlds,6}      -  {armies,6}"
-                    : $"{r.Name.ToUpperInvariant(),-13} {worlds,6}  {ships.Count(s => s.Alive),2}/{ships.Count,-2} {armies,6}";
+                    : $"{r.Name.ToUpperInvariant(),-13} {worlds,6}  {ships.Count(s => s.Alive),2}/{world.FleetCap(team),-2} {armies,6}";
             if (team == world.PlayerTeam) line += "  <";
             ScoreText.Inlines.Add(new Run(line + "\n") { Foreground = Palette.TeamBrush(team) });
         }

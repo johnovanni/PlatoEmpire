@@ -15,11 +15,13 @@ public sealed class GameWorld
     public const double OrbitEnterRange = 280;
     public const double OrbitAngularSpeed = 1.0;   // degrees per tick
     public const double ShipRadius = 22;
+    public const double TorpedoHitRadius = ShipRadius + 6;  // a torpedo hits when its centre comes this close to a ship
     public const double CloakVisibility = 450;
     public const int OrbitActionInterval = 15;
     public const double TorpCost = 35;
     public const double PhaserCost = 80;
     public const int RespawnTicks = 120;
+    public const int ShipyardTicks = 150;                   // one new ship per empire at most this often
     public const int BombFloor = 4;
 
     public GameSettings Settings { get; }
@@ -42,6 +44,9 @@ public sealed class GameWorld
     /// <summary>Empire currently holding the conquest share of the galaxy, if any.</summary>
     public Team? ConquestLeader { get; private set; }
     int conquestStartTick;
+    readonly Dictionary<Team, int> startingWorlds = [];
+    readonly Dictionary<Team, int> startingFleet = [];
+    readonly Dictionary<Team, int> shipsBuilt = [];
 
     public bool ConquestEnabled => Settings.ConquestPercent > 0;
     public int ConquestPercent => Math.Clamp(Settings.ConquestPercent, 51, 100);
@@ -66,6 +71,7 @@ public sealed class GameWorld
         ActiveTeams = new HashSet<Team>(rivals) { PlayerTeam };
 
         BuildGalaxy();
+        foreach (var team in ActiveTeams) startingWorlds[team] = Planets.Count(p => p.Owner == team);
         BuildShips();
 
         var rivalNames = string.Join(", ", ActiveTeams.Where(t => t != PlayerTeam).Select(t => RaceStats.For(t).Plural));
@@ -125,24 +131,24 @@ public sealed class GameWorld
 
     void BuildShips()
     {
-        var counts = new Dictionary<Team, int>();
-        Ship Make(Team team, bool isPlayer)
-        {
-            int n = counts.GetValueOrDefault(team) + 1;
-            counts[team] = n;
-            var stats = RaceStats.For(team);
-            var ship = new Ship(Ships.Count, team, $"{stats.Letter}{n}", stats.ShipNames[(n - 1) % stats.ShipNames.Length], isPlayer);
-            if (!isPlayer || Settings.PlayerAutopilot) ship.Brain = new BotBrain(this, ship, Rng.Next());
-            Ships.Add(ship);
-            return ship;
-        }
-
-        Player = Make(PlayerTeam, true);
-        for (int i = 0; i < Math.Clamp(Settings.AlliedBots, 0, 7); i++) Make(PlayerTeam, false);
+        Player = AddShip(PlayerTeam, true);
+        for (int i = 0; i < Math.Clamp(Settings.AlliedBots, 0, 7); i++) AddShip(PlayerTeam, false);
         foreach (var team in ActiveTeams.Where(t => t != PlayerTeam))
-            for (int i = 0; i < Math.Clamp(Settings.ShipsPerEmpire, 1, 8); i++) Make(team, false);
+            for (int i = 0; i < Math.Clamp(Settings.ShipsPerEmpire, 1, 8); i++) AddShip(team, false);
 
+        foreach (var team in ActiveTeams) startingFleet[team] = FleetSize(team);
         foreach (var s in Ships) TryRespawn(s, announce: false);
+    }
+
+    Ship AddShip(Team team, bool isPlayer)
+    {
+        int n = shipsBuilt.GetValueOrDefault(team) + 1;
+        shipsBuilt[team] = n;
+        var stats = RaceStats.For(team);
+        var ship = new Ship(Ships.Count, team, $"{stats.Letter}{n}", stats.ShipNames[(n - 1) % stats.ShipNames.Length], isPlayer);
+        if (!isPlayer || Settings.PlayerAutopilot) ship.Brain = new BotBrain(this, ship, Rng.Next());
+        Ships.Add(ship);
+        return ship;
     }
 
     // ------------------------------------------------------------------ messages
@@ -220,7 +226,7 @@ public sealed class GameWorld
         {
             Owner = s,
             Team = s.Team,
-            Pos = s.Pos + dir * (ShipRadius + 6),
+            Pos = s.Pos + dir * TorpedoHitRadius,
             Vel = dir * s.Stats.TorpSpeed,
             Life = s.Stats.TorpLife,
             Damage = s.Stats.TorpDamage * DamageMultiplier(s),
@@ -333,6 +339,7 @@ public sealed class GameWorld
         foreach (var e in Explosions) e.Age++;
         Explosions.RemoveAll(e => e.Age >= e.MaxAge);
 
+        if (Tick % ShipyardTicks == 0) RunShipyards();
         if (Tick % 15 == 0) CheckVictory();
     }
 
@@ -340,14 +347,24 @@ public sealed class GameWorld
     {
         if (!s.Alive)
         {
-            if (s.RespawnTimer > 0)
+            if (s.RespawnTimer > 1)
             {
-                if (--s.RespawnTimer == 0) TryRespawn(s, announce: true);
+                s.RespawnTimer--;
+                return;
             }
-            else if (s.Stranded && Tick % 30 == 0)
+            bool due = s.RespawnTimer == 1 || (s.Stranded && Tick % 30 == 0);
+            if (!due) return;
+
+            // A bot whose empire is at its fleet cap waits (timer parked at 1) until a slot frees up.
+            // The player is never kept waiting, but does count toward the cap.
+            bool hasWorlds = Planets.Any(p => p.Owner == s.Team);
+            if (!s.IsPlayer && hasWorlds && AliveShips(s.Team) >= FleetCap(s.Team))
             {
-                TryRespawn(s, announce: true);
+                s.RespawnTimer = 1;
+                return;
             }
+            s.RespawnTimer = 0;
+            TryRespawn(s, announce: true);
             return;
         }
 
@@ -451,11 +468,56 @@ public sealed class GameWorld
     void Capture(Planet p, Ship s)
     {
         var old = p.Owner;
+        int playerCapBefore = FleetCap(PlayerTeam);
         p.Owner = s.Team;
         p.Armies = 1;
         p.RegenTimer = 0;
         s.Captures++;
         Post($"{p.Name} captured from the {RaceStats.For(old).Plural} by {s.Label} ({s.Stats.Plural})!", s.Team);
+
+        int playerCap = FleetCap(PlayerTeam);
+        if (playerCap != playerCapBefore)
+            Post($"Fleet limit: your {Planets.Count(pl => pl.Owner == PlayerTeam)} worlds support {ShipCount(playerCap)}.", null);
+    }
+
+    static string ShipCount(int n) => n == 1 ? "1 ship" : $"{n} ships";
+
+    /// <summary>All ships ever commissioned for <paramref name="team"/>, flying or not.</summary>
+    public int FleetSize(Team team) => Ships.Count(s => s.Team == team);
+
+    public int AliveShips(Team team) => Ships.Count(s => s.Team == team && s.Alive);
+
+    /// <summary>
+    /// How many ships <paramref name="team"/> may have flying: its starting fleet scaled by worlds held versus worlds
+    /// it started with, rounded up so any empire with a world keeps at least one ship.
+    /// </summary>
+    public int FleetCap(Team team)
+    {
+        int fleet = startingFleet.GetValueOrDefault(team);
+        int start = startingWorlds.GetValueOrDefault(team);
+        if (Settings.FleetRule == FleetRule.Fixed || start == 0) return fleet;
+        return (int)Math.Ceiling(fleet * (double)Planets.Count(p => p.Owner == team) / start);
+    }
+
+    /// <summary>
+    /// Under <see cref="FleetRule.ScaleWithWorlds"/>, an empire below its fleet limit with no destroyed ships waiting
+    /// to return builds one new ship every <see cref="ShipyardTicks"/>.
+    /// </summary>
+    void RunShipyards()
+    {
+        if (Settings.FleetRule != FleetRule.ScaleWithWorlds) return;
+        foreach (var team in ActiveTeams)
+        {
+            if (Eliminated.Contains(team) || !Planets.Any(p => p.Owner == team)) continue;
+            int inService = Ships.Count(s => s.Team == team && (s.Alive || !s.Stranded));
+            int cap = FleetCap(team);
+            if (inService >= cap) continue;
+
+            var ship = AddShip(team, false);
+            TryRespawn(ship, announce: false);
+            if (team == PlayerTeam)
+                Post($"New ship {ship.Label} commissioned - your {Planets.Count(p => p.Owner == team)} worlds support {ShipCount(cap)}.", team);
+        }
     }
 
     void UpdateTorpedoes()
@@ -471,7 +533,7 @@ public sealed class GameWorld
             foreach (var s in Ships)
             {
                 if (!s.Alive || s.Team == t.Team) continue;
-                if ((s.Pos - t.Pos).LengthSquared > (ShipRadius + 6) * (ShipRadius + 6)) continue;
+                if ((s.Pos - t.Pos).LengthSquared > TorpedoHitRadius * TorpedoHitRadius) continue;
                 t.Dead = true;
                 Explosions.Add(new Explosion(t.Pos, 12, 35, t.Team));
                 ApplyDamage(s, t.Damage, t.Owner, null);

@@ -178,7 +178,7 @@ public class CombatTests
         foreach (var p in w.Planets.Where(p => p.Owner == enemy.Team)) p.Owner = Team.Neutral;
 
         w.ApplyDamage(enemy, enemy.Stats.MaxHull, w.Player, null);
-        TestWorld.Run(w, GameWorld.RespawnTicks + 1);
+        TestWorld.Run(w, enemy.RespawnTimer + 1);
 
         Assert.False(enemy.Alive);
         Assert.True(enemy.Stranded);

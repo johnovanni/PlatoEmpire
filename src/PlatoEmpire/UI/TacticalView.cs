@@ -177,10 +177,23 @@ public sealed class TacticalView : FrameworkElement
         }
     }
 
+    /// <summary>Ship drawings below span about this many local units from their centre.</summary>
+    const double GlyphExtent = 11;
+
+    /// <summary>Smallest on-screen ship radius, in pixels, so ships stay recognisable when zoomed far out.</summary>
+    public const double MinShipPixels = 5;
+
+    /// <summary>
+    /// On-screen radius of a ship: the true area a torpedo must reach to hit it, at the current zoom, so a shot that
+    /// looks like a hit is one. Only when zoomed far out is it held at <see cref="MinShipPixels"/> to stay visible.
+    /// </summary>
+    public static double ShipPixelRadius(double scale) => Math.Max(MinShipPixels, GameWorld.TorpedoHitRadius * scale);
+
     void DrawShip(DrawingContext dc, GameWorld world, Ship s, double scale)
     {
         var c = WorldToScreen(s.Pos);
-        double k = Math.Clamp(scale * 3.5, 0.75, 1.5);
+        double r = ShipPixelRadius(scale);
+        double k = r / GlyphExtent;
         double h = s.Heading * Math.PI / 180, cos = Math.Cos(h), sin = Math.Sin(h);
         Point P(double x, double y) => new(c.X + (x * cos - y * sin) * k, c.Y + (x * sin + y * cos) * k);
 
@@ -214,16 +227,18 @@ public sealed class TacticalView : FrameworkElement
         if (s.ShieldsUp)
         {
             var sb = Palette.Frozen(Palette.TeamColor(s.Team), 0.25 + 0.6 * s.Shield / s.Stats.MaxShield);
-            dc.DrawEllipse(null, Palette.FrozenPen(sb, 1), c, 16 * k, 16 * k);
+            double shield = Math.Max(r * 1.45, r + 4);
+            dc.DrawEllipse(null, Palette.FrozenPen(sb, 1), c, shield, shield);
         }
 
+        // Label and hull bar sit a fixed gap outside the ship so they stay readable at any size.
         string label = s.Armies > 0 ? $"{s.Callsign} +{s.Armies}" : s.Callsign;
-        Text(dc, label, new Point(c.X + 14 * k, c.Y - 18 * k), Palette.TeamBrush(s.Team), 11);
+        Text(dc, label, new Point(c.X + r + 3, c.Y - r - 12), Palette.TeamBrush(s.Team), 11);
 
         if (s.HullFraction > 0.05 && s != world.Player)
         {
             double w = 22;
-            var origin = new Point(c.X - w / 2, c.Y + 15 * k);
+            var origin = new Point(c.X - w / 2, c.Y + r + 4);
             dc.DrawRectangle(Palette.PlasmaFaint, null, new Rect(origin, new Size(w, 2)));
             dc.DrawRectangle(Palette.TeamBrush(s.Team), null, new Rect(origin, new Size(w * (1 - s.HullFraction), 2)));
         }

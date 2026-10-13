@@ -34,7 +34,7 @@ public sealed class RaceStats
         [Team.Federation] = new RaceStats
         {
             Name = "Federation", Plural = "Federation", Letter = 'F',
-            Description = "Balanced heavy cruiser. Strong shields, good phasers, carries 6 armies.",
+            Description = "Balanced heavy cruiser. Medium speed and firepower, strong shields, carries 6 armies.",
             ShipNames = ["Enterprise", "Excalibur", "Lexington", "Hood", "Potemkin", "Yorktown", "Intrepid", "Constellation"],
             PlanetNames = ["Earth", "Vulcan", "Andor", "Tellar", "Centauri"],
             MaxWarp = 8, TurnRate = 6, Accel = 0.15, MaxEnergy = 1000, EnergyRegen = 2.4,
@@ -44,31 +44,31 @@ public sealed class RaceStats
         [Team.Klingon] = new RaceStats
         {
             Name = "Klingon", Plural = "Klingons", Letter = 'K',
-            Description = "Battlecruiser. Tough hull and the hardest-hitting phasers, weaker shields.",
+            Description = "Battlecruiser. Federation-class speed and firepower; nimbler, with lighter shields.",
             ShipNames = ["Gr'oth", "Klothos", "Devisor", "Fek'lhr", "Kor", "Kang", "Koloth", "Kumara"],
             PlanetNames = ["Klinzhai", "Kaleb", "Morath", "Tarsus", "Hakon"],
-            MaxWarp = 8, TurnRate = 7, Accel = 0.18, MaxEnergy = 900, EnergyRegen = 2.2,
-            MaxHull = 115, MaxShield = 80, PhaserDamage = 38, PhaserRange = 650,
-            TorpDamage = 22, TorpSpeed = 28, TorpLife = 45, MaxTorps = 8, ArmyCapacity = 6,
+            MaxWarp = 8, TurnRate = 7, Accel = 0.18, MaxEnergy = 1000, EnergyRegen = 2.4,
+            MaxHull = 100, MaxShield = 90, PhaserDamage = 32, PhaserRange = 700,
+            TorpDamage = 22, TorpSpeed = 28, TorpLife = 50, MaxTorps = 8, ArmyCapacity = 6,
         },
         [Team.Romulan] = new RaceStats
         {
             Name = "Romulan", Plural = "Romulans", Letter = 'R',
-            Description = "Bird of Prey. Slow, but fires heavy plasma torpedoes and can cloak (C).",
+            Description = "Bird of Prey. The slowest ship, with the strongest phasers and plasma torpedoes. Can cloak (C).",
             ShipNames = ["Praetor", "Vreenak", "Decius", "Khazara", "Haakona", "Terix", "Belak", "Valdore"],
             PlanetNames = ["Romulus", "Remus", "Achernar", "Eridani", "Aldebaran"],
-            MaxWarp = 7, TurnRate = 5, Accel = 0.12, MaxEnergy = 1100, EnergyRegen = 2.5,
-            MaxHull = 95, MaxShield = 110, PhaserDamage = 26, PhaserRange = 600,
-            TorpDamage = 32, TorpSpeed = 24, TorpLife = 55, MaxTorps = 6, ArmyCapacity = 5, CanCloak = true,
+            MaxWarp = 7, TurnRate = 5, Accel = 0.12, MaxEnergy = 1000, EnergyRegen = 2.4,
+            MaxHull = 95, MaxShield = 100, PhaserDamage = 35, PhaserRange = 650,
+            TorpDamage = 26, TorpSpeed = 24, TorpLife = 55, MaxTorps = 6, ArmyCapacity = 5, CanCloak = true,
         },
         [Team.Orion] = new RaceStats
         {
             Name = "Orion", Plural = "Orions", Letter = 'O',
-            Description = "Pirate raider. Fastest and most agile, lightly built, carries 8 armies.",
+            Description = "Pirate raider. The fastest and most agile ship, with the weakest weapons. Carries 8 armies.",
             ShipNames = ["Corsair", "Marauder", "Raider", "Buccaneer", "Privateer", "Freebooter", "Brigand", "Rover"],
             PlanetNames = ["Orion", "Rigel", "Antares", "Betelgeuse", "Deneb"],
             MaxWarp = 9, TurnRate = 8, Accel = 0.22, MaxEnergy = 850, EnergyRegen = 2.6,
-            MaxHull = 85, MaxShield = 85, PhaserDamage = 30, PhaserRange = 700,
+            MaxHull = 85, MaxShield = 85, PhaserDamage = 28, PhaserRange = 650,
             TorpDamage = 20, TorpSpeed = 30, TorpLife = 45, MaxTorps = 8, ArmyCapacity = 8,
         },
         [Team.Neutral] = new RaceStats

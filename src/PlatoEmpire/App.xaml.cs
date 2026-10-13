@@ -23,6 +23,13 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // PlatoEmpire.exe --races [report.txt]  compares how the four races fare across many even-skill bot games.
+        if (e.Args.Length > 0 && e.Args[0] == "--races")
+        {
+            File.WriteAllText(e.Args.Length > 1 ? e.Args[1] : "races.txt", SelfTest.RaceBalance());
+            Shutdown();
+            return;
+        }
         if (e.Args.Length > 1 && e.Args[0] == "--snapshot")
         {
             SelfTest.Snapshot(e.Args[1]);

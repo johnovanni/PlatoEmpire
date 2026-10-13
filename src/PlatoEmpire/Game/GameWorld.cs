@@ -16,7 +16,9 @@ public sealed class GameWorld
     public const double OrbitAngularSpeed = 1.0;   // degrees per tick
     public const double ShipRadius = 22;
     public const double TorpedoHitRadius = ShipRadius + 6;  // a torpedo hits when its centre comes this close to a ship
-    public const double CloakVisibility = 450;
+    public const double CloakVisibility = 300;              // enemies closer than this can see a cloaked ship
+    public const double CloakEngageCost = 150;              // energy spent to switch the cloak on
+    public const double CloakDrainPerTick = 3.5;            // energy used every tick while cloaked (more than any ship regenerates)
     public const int OrbitActionInterval = 15;
     public const double TorpCost = 35;
     public const double PhaserCost = 80;
@@ -206,7 +208,12 @@ public sealed class GameWorld
     {
         if (!s.Alive) return;
         if (!s.Stats.CanCloak) { Notify(s, "Only Romulan ships carry a cloaking device."); return; }
-        if (on && s.Energy < 100) { Notify(s, "Insufficient energy to cloak."); return; }
+        if (on == s.Cloaked) return;
+        if (on)
+        {
+            if (s.Energy < Math.Max(CloakEngageCost, 1)) { Notify(s, "Insufficient energy to cloak."); return; }
+            s.Energy -= CloakEngageCost;
+        }
         s.Cloaked = on;
         Notify(s, on ? "Cloaking device engaged." : "Cloak disengaged.");
     }
@@ -402,7 +409,7 @@ public sealed class GameWorld
         bool friendlyOrbit = s.Orbiting?.Owner == s.Team;
         s.Energy += st.EnergyRegen * (friendlyOrbit ? 3 : 1);
         if (s.ShieldsUp) s.Energy -= 0.7;
-        if (s.Cloaked) s.Energy -= 2.2;
+        if (s.Cloaked) s.Energy -= CloakDrainPerTick;
         if (s.Energy <= 0)
         {
             s.Energy = 0;

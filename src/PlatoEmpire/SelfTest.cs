@@ -108,6 +108,50 @@ public static class SelfTest
                $"{games.Average(g => g.Eliminated),6:0.0}  {avgMin,7}  {games.Average(g => g.Captures),8:0.0}  {games.Average(g => g.PeakWorlds),11:0.0}  {games.Average(g => g.PeakShips),10:0.0}";
     }
 
+    /// <summary>
+    /// Race balance: four-empire games with every bot at the same skill (Lieutenant, which is also the ally level),
+    /// rotating which race the autopilot "player" flies. Reports wins and average worlds held per race.
+    /// </summary>
+    public static string RaceBalance(int games = 40, int minutes = 40)
+    {
+        int maxTicks = GameWorld.TicksPerSecond * 60 * minutes;
+        var wins = RaceStats.Empires.ToDictionary(t => t, _ => 0);
+        var worlds = RaceStats.Empires.ToDictionary(t => t, _ => 0.0);
+        var eliminated = RaceStats.Empires.ToDictionary(t => t, _ => 0);
+        int finished = 0;
+
+        for (int g = 0; g < games; g++)
+        {
+            var world = new GameWorld(new GameSettings
+            {
+                PlayerTeam = RaceStats.Empires[g % 4], Opponents = 3, ShipsPerEmpire = 4, AlliedBots = 3,
+                Difficulty = DifficultyProfile.Ally.Level, Seed = 5000 + g, PlayerAutopilot = true,
+            });
+            while (world.Result == GameResult.None && world.Tick < maxTicks) world.Step();
+
+            foreach (var t in RaceStats.Empires)
+            {
+                worlds[t] += world.Planets.Count(p => p.Owner == t);
+                if (world.Eliminated.Contains(t)) eliminated[t]++;
+            }
+            if (world.Result == GameResult.None) continue;
+            finished++;
+            // The winner is the player's team on Victory; otherwise the empire holding the most worlds.
+            var winner = world.Result == GameResult.Victory
+                ? world.PlayerTeam
+                : RaceStats.Empires.Where(t => t != world.PlayerTeam).MaxBy(t => world.Planets.Count(p => p.Owner == t));
+            wins[winner]++;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"{games} four-empire games, all bots at {DifficultyProfile.Ally.Name}, {minutes}-minute limit; {finished} finished.");
+        sb.AppendLine();
+        sb.AppendLine("race         wins  avg-worlds-at-end  eliminated");
+        foreach (var t in RaceStats.Empires)
+            sb.AppendLine($"{t,-12} {wins[t],4}  {worlds[t] / games,17:0.0}  {eliminated[t],10}");
+        return sb.ToString();
+    }
+
     /// <summary>Renders the tactical and galaxy views of a mid-game world to PNG files (visual smoke test).</summary>
     public static void Snapshot(string folder)
     {

@@ -201,13 +201,6 @@ public sealed class BotBrain
         if (Mode == BotMode.Repair && me.Orbiting != null && td > 1100 && torp == null) wantShields = false;
         if (me.ShieldsUp != wantShields) w.SetShields(me, wantShields);
 
-        if (me.Stats.CanCloak && p.UsesCloak)
-        {
-            bool travelling = Mode is BotMode.Ferry or BotMode.Capture or BotMode.Bomb or BotMode.Repair or BotMode.Patrol;
-            bool wantCloak = travelling && me.Orbiting == null && td > 700 && me.Energy > me.Stats.MaxEnergy * 0.35;
-            if (wantCloak != me.Cloaked) w.SetCloak(me, wantCloak);
-        }
-
         switch (Mode)
         {
             case BotMode.Fight:
@@ -229,10 +222,44 @@ public sealed class BotBrain
         if (Mode != BotMode.Fight && threat != null && td < 900) TryShoot(threat, td);
         if (p.Dodges && torp != null && me.Orbiting == null) Dodge(torp);
 
+        // Decided after moving and firing so orbit and weapon state are current for this tick.
+        if (me.Stats.CanCloak && p.UsesCloak) ManageCloak(td);
+
         // Applied last so it overrides every other steering decision, including dodges.
         if (me.Orbiting == null)
             w.SetCourse(me, AvoidEdges(me.Pos, me.DesiredHeading, Math.Max(me.Warp, me.DesiredWarp) * GameWorld.WarpUnit));
     }
+
+    /// <summary>
+    /// Cloaks while travelling, but only when something could see or shoot the ship: an enemy ship within
+    /// 2,500 units (yet beyond close range) or a hostile planet within 1,000. Engaging is expensive, so every
+    /// on/off threshold has a gap (energy 80% / 30%, enemy distance 700 / 500, watch radius 2,500 / 3,500 for
+    /// ships and 1,000 / 1,500 for planets) to avoid paying to re-engage over and over. The bot also won't
+    /// engage right after firing, which drops the cloak.
+    /// </summary>
+    void ManageCloak(double enemyDist)
+    {
+        if (Mode == BotMode.Idle) return;   // momentary state between plans; don't pay to re-engage after it
+        bool travelling = Mode is BotMode.Ferry or BotMode.Capture or BotMode.Bomb or BotMode.Repair or BotMode.Patrol;
+        double energy = me.Energy / me.Stats.MaxEnergy;
+        bool Watched(double shipRadius, double planetRadius) => enemyDist < shipRadius
+            || w.Planets.Any(pl => pl.Owner != me.Team && pl.Armies > 0 && Dist(pl.Pos) < planetRadius);
+        bool justFired = me.TorpCooldown > 0 || me.PhaserCooldown > 0;
+        // About to orbit, where the cloak comes off: near the destination, or near any world it may switch plans to.
+        bool almostThere = (planet != null && Dist(planet.Pos) < 900) || w.Planets.Any(pl => Dist(pl.Pos) < 600);
+
+        // Already cloaked when a fight starts: stay cloaked and close in for an ambush (see TryShoot).
+        bool ambushing = Mode == BotMode.Fight;
+        bool wantCloak = me.Cloaked
+            ? me.Orbiting == null && energy > 0.3
+              && (ambushing || (travelling && Watched(3500, 1500) && enemyDist > 500))
+            : travelling && me.Orbiting == null && Watched(2500, 1000) && enemyDist > 700 && energy > 0.8
+              && !justFired && !almostThere;
+        if (wantCloak != me.Cloaked) w.SetCloak(me, wantCloak);
+    }
+
+    /// <summary>A cloaked bot holds fire until its target is this close.</summary>
+    public const double AmbushRange = 500;
 
     /// <summary>How close to the edge of the galaxy a bot is willing to fly.</summary>
     public const double EdgeBuffer = 150;
@@ -290,6 +317,7 @@ public sealed class BotBrain
     {
         var p = P;
         var st = me.Stats;
+        if (me.Cloaked && d > AmbushRange) return;   // firing drops the cloak, so hold fire until close
         double torpRange = st.TorpSpeed * st.TorpLife * 0.8;
         if (d < torpRange && me.Energy > 150 && rng.NextDouble() < p.FireChance)
         {

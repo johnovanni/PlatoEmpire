@@ -137,7 +137,7 @@ public sealed class TacticalView : FrameworkElement
 
         Text(dc, $"SECTOR {(int)(center.X / 1000)}-{(int)(center.Y / 1000)}   POS {center.X:0},{center.Y:0}   SCALE {ViewRadius:0}",
             new Point(8, 6), Palette.PlasmaDim, 12);
-        Text(dc, "H = HELP   ENTER = COMMAND", new Point(8, ActualHeight - 20), Palette.PlasmaDim, 12);
+        Text(dc, "H = HELP   ESC = PAUSE   ENTER = COMMAND", new Point(8, ActualHeight - 20), Palette.PlasmaDim, 12);
 
         if (world.ConquestLeader is { } leader)
         {
@@ -156,7 +156,7 @@ public sealed class TacticalView : FrameworkElement
             Text(dc, msg, new Point(ActualWidth / 2, ActualHeight / 2 - 60), Palette.PlasmaBrush, 22, centered: true);
         }
         if (Paused)
-            Text(dc, "- PAUSED -   (ESC to resume)", new Point(ActualWidth / 2, ActualHeight / 2 - 100), Palette.PlasmaBrush, 24, centered: true);
+            Text(dc, "- PAUSED -   (ESC or PAUSE to resume)", new Point(ActualWidth / 2, ActualHeight / 2 - 100), Palette.PlasmaBrush, 24, centered: true);
 
         dc.Pop();
     }

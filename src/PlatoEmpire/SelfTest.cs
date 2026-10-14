@@ -170,6 +170,22 @@ public static class SelfTest
             enc.Save(fs);
         }
 
+        // The help panel as laid out in the smallest allowed window (MinWidth 1100 x MinHeight 720).
+        var help = new System.Windows.Controls.Border
+        {
+            Background = System.Windows.Media.Brushes.Black,
+            BorderBrush = UI.Palette.PlasmaBrush,
+            BorderThickness = new System.Windows.Thickness(2),
+            Padding = new System.Windows.Thickness(30, 22, 30, 22),
+            Child = new System.Windows.Controls.TextBlock
+            {
+                Text = MainWindow.Help, FontSize = 14, LineHeight = 20,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"), Foreground = UI.Palette.PlasmaBrush,
+            },
+        };
+        help.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        Save(help, (int)Math.Ceiling(help.DesiredSize.Width), (int)Math.Ceiling(help.DesiredSize.Height), "help.png");
+
         foreach (var (radius, name) in new[] { (600.0, "tactical-zoomed-in.png"), (4000.0, "tactical-zoomed-out.png") })
             Save(new UI.TacticalView { World = world, ViewRadius = radius }, 1000, 700, name);
         var tactical = new UI.TacticalView { World = world };

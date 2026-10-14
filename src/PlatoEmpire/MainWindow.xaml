@@ -149,8 +149,11 @@
         <!-- ===================== HELP ===================== -->
         <Grid x:Name="HelpOverlay" Background="#E6000000" Visibility="Collapsed" MouseLeftButtonDown="Help_Click">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource Plasma}"
-                    BorderThickness="2" Padding="30,22" Background="Black">
-                <TextBlock x:Name="HelpText" FontSize="14" LineHeight="20"/>
+                    BorderThickness="2" Padding="30,22" Background="Black" Margin="16">
+                <!-- Scrolls (mouse wheel) when the window is too short to show all of the help. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <TextBlock x:Name="HelpText" FontSize="14" LineHeight="20"/>
+                </ScrollViewer>
             </Border>
         </Grid>
 

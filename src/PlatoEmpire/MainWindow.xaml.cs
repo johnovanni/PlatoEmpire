@@ -13,19 +13,30 @@ public sealed record MessageVm(string Text, Brush Brush);
 
 public partial class MainWindow : Window
 {
-    const string Help =
+    internal const string Help =
         "CONTROLS\n" +
         "  Left click ............ set course toward the point (engages warp 4 if stopped)\n" +
         "  Right click / SPACE / T fire photon torpedo toward the mouse\n" +
         "  Shift+click / P ....... fire phasers toward the mouse\n" +
-        "  0 - 9 ................. set warp speed        Up/Down  warp +1 / -1\n" +
+        "  0 - 9 (or keypad) ..... set warp speed        Up/Down  warp +1 / -1\n" +
         "  Left/Right ............ turn course 15 degrees\n" +
         "  S shields   O orbit planet   B bomb   U beam armies up   D beam armies down\n" +
         "  C cloak (Romulans only)\n" +
-        "  + / - / mouse wheel ... zoom          Click the galaxy map to set a long-range course\n" +
-        "  [ / ] ................. enemy difficulty  ESC pause   H help\n" +
-        "  ENTER ................. type a PLATO-style command, e.g.\n" +
-        "                          w 6   c 270   w 5 90   t 45   p 90   o   b   u   d   s   cloak   diff 4\n\n" +
+        "  + / - (or keypad) ..... zoom, as does the mouse wheel\n" +
+        "  Click the galaxy map .. set a long-range course\n" +
+        "  [ / ] ................. enemy difficulty      ESC or PAUSE key ... pause / resume\n" +
+        "  H or F1 ............... this help\n" +
+        "  ENTER or / ............ type a PLATO-style command (ENTER runs it, ESC cancels)\n\n" +
+        "TYPED COMMANDS\n" +
+        "  Directions are in degrees, clockwise like a compass: 0 = up, 90 = right, 180 = down,\n" +
+        "  270 = left. (The original PLATO game used 0 = right, counter-clockwise.)\n" +
+        "  w 6 ........ set warp 6                 w 5 90 ..... warp 5 on course 90\n" +
+        "  c 270 ...... set course 270             t 45 ....... fire a torpedo toward 45\n" +
+        "  p 90 ....... fire phasers toward 90     s .......... toggle shields (s up / s down)\n" +
+        "  o orbit   b bomb   u beam up   d beam down   cloak   diff 4 (set difficulty 1-5)\n" +
+        "  pause   help or ?\n" +
+        "  Long forms also work: warp, course, torp, torpedo, phaser, phasers, shields, orbit, bomb,\n" +
+        "  up, beamup, down, beamdown, difficulty.\n\n" +
         "HOW TO CONQUER THE GALAXY\n" +
         "  Every world holds armies. Orbit an enemy world and BOMB it down to 4 armies.\n" +
         "  Orbit one of your own worlds and BEAM UP armies (up to your ship's troop capacity).\n" +
@@ -458,6 +469,7 @@ public partial class MainWindow : Window
                 ChangeDifficulty(+1);
                 break;
             case Key.Escape:
+            case Key.Pause:
                 paused = !paused;
                 break;
             case Key.H:
@@ -518,6 +530,9 @@ public partial class MainWindow : Window
                 break;
             case "diff" or "difficulty" when Arg(1) is { } level:
                 ChangeDifficulty((int)level - world.Difficulty.Level);
+                break;
+            case "pause":
+                paused = !paused;
                 break;
             case "help" or "?":
                 HelpOverlay.Visibility = Visibility.Visible;

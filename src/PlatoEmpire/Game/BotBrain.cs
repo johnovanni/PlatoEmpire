@@ -12,24 +12,76 @@ public sealed class BotBrain
 {
     readonly GameWorld w;
     readonly Ship me;
+    readonly RaceDoctrine baseDoctrine;
+    RaceDoctrine? scaledDoctrine;
+    double scaledFor = -1;
     readonly Random rng;
     int thinkTimer;
     int side = 1;
+    bool breakingOff;
     Ship? target;
     Planet? planet;
     Vector patrol;
 
     public BotMode Mode { get; private set; }
 
+    /// <summary>The enemy ship this bot is fighting, if any.</summary>
+    public Ship? Target => target;
+
+    /// <summary>The planet this bot is heading for or working at, if any.</summary>
+    public Planet? Destination => planet;
+
+    /// <summary>Runs a planning step immediately (tests).</summary>
+    internal void ThinkNow() => Think();
+
+    /// <summary>Gives the bot a job directly (tests).</summary>
+    internal void Assign(BotMode mode, Planet? destination, Ship? enemy)
+    {
+        Mode = mode;
+        planet = destination;
+        target = enemy;
+    }
+
     public BotBrain(GameWorld world, Ship ship, int seed)
     {
         w = world;
         me = ship;
+        baseDoctrine = RaceDoctrine.For(ship.Team);
         rng = new Random(seed);
         thinkTimer = rng.Next(1, 20);
     }
 
     DifficultyProfile P => me.Team == w.PlayerTeam ? DifficultyProfile.Ally : w.Difficulty;
+
+    /// <summary>The race's doctrine, applied as fully as the difficulty level allows (ISS-002).</summary>
+    RaceDoctrine doctrine
+    {
+        get
+        {
+            double strength = P.DoctrineStrength;
+            if (strength != scaledFor)
+            {
+                scaledDoctrine = baseDoctrine.Scaled(strength);
+                scaledFor = strength;
+            }
+            return scaledDoctrine!;
+        }
+    }
+
+    /// <summary>Other living bots on this bot's side.</summary>
+    IEnumerable<Ship> Allies() => w.Ships.Where(s => s != me && s.Alive && s.Team == me.Team && s.Brain != null);
+
+    /// <summary>At Commander and above: a rival close to winning by conquest, whose worlds and ships come first.</summary>
+    Team? ConquestThreat => P.RespondsToConquest && w.ConquestLeader is { } leader && leader != me.Team ? leader : null;
+
+    /// <summary>Worlds worth attacking: every enemy world, or only the conquest leader's while it threatens to win.</summary>
+    IEnumerable<Planet> CampaignTargets()
+    {
+        var enemyWorlds = w.Planets.Where(pl => pl.Owner != me.Team);
+        return ConquestThreat is { } leader && w.Planets.Any(pl => pl.Owner == leader)
+            ? enemyWorlds.Where(pl => pl.Owner == leader)
+            : enemyWorlds;
+    }
 
     public void Update()
     {
@@ -38,6 +90,7 @@ public sealed class BotBrain
             Mode = BotMode.Idle;
             target = null;
             planet = null;
+            breakingOff = false;
             return;
         }
         if (--thinkTimer <= 0)
@@ -60,6 +113,7 @@ public sealed class BotBrain
     {
         var p = P;
         double hull = me.HullFraction, energy = me.Energy / me.Stats.MaxEnergy;
+        double retreatAt = Math.Clamp(p.RetreatHull + doctrine.RetreatOffset, 0.3, 0.95);
         NearestEnemy(out double threatDist);
         bool threatClose = threatDist < 650;
 
@@ -70,13 +124,21 @@ public sealed class BotBrain
             {
                 case BotMode.Repair when planet.Owner == me.Team && (hull > 0.08 || energy < 0.8):
                 case BotMode.Ferry when planet.Owner == me.Team && me.Armies < me.Stats.ArmyCapacity && planet.Armies > 1:
-                case BotMode.Bomb when planet.Owner != me.Team && planet.Armies > GameWorld.BombFloor && hull < p.RetreatHull:
-                case BotMode.Capture when me.Armies > 0 && hull < p.RetreatHull:
+                case BotMode.Bomb when planet.Owner != me.Team && planet.Armies > GameWorld.BombFloor && hull < retreatAt:
+                case BotMode.Capture when me.Armies > 0 && hull < retreatAt:
                     return;
             }
         }
 
-        if (hull > p.RetreatHull || energy < 0.12)
+        // Light ships (Orion doctrine) also break off a fight once their shields are spent, and stay broken off
+        // until they're back above 60%; otherwise they'd flip between fighting and fleeing every planning step.
+        double shields = me.Shield / me.Stats.MaxShield;
+        if (doctrine.BreakOffShields > 0 && Mode == BotMode.Fight && threatDist < 1200 && shields < doctrine.BreakOffShields)
+            breakingOff = true;
+        else if (breakingOff && shields >= 0.6)
+            breakingOff = false;
+
+        if (hull > retreatAt || energy < 0.12 || breakingOff)
         {
             var refuge = NearestPlanet(pl => pl.Owner == me.Team);
             if (refuge != null)
@@ -104,8 +166,14 @@ public sealed class BotBrain
 
         if (me.Armies > 0)
         {
-            var cp = Best(w.Planets.Where(pl => pl.Owner != me.Team),
-                pl => Dist(pl.Pos) + pl.Armies * 350 + (pl.Owner == Team.Neutral ? 500 : 0));
+            // Admirals land their armies on a world an ally is bombing, completing a coordinated invasion.
+            var alliesBombing = P.CoordinatesInvasions
+                ? Allies().Where(a => a.Brain!.Mode == BotMode.Bomb && a.Brain.Destination is { } d && d.Owner != me.Team)
+                    .Select(a => a.Brain!.Destination!).ToList()
+                : [];
+            var candidates = alliesBombing.Count > 0 ? alliesBombing : CampaignTargets();
+            var cp = Best(candidates,
+                pl => Dist(pl.Pos) + pl.Armies * 350 + (pl.Owner == Team.Neutral ? 500 : 0) + RaidPenalty(pl));
             if (cp != null)
             {
                 Mode = BotMode.Capture;
@@ -114,23 +182,46 @@ public sealed class BotBrain
             }
         }
 
-        if (p.StrategicCaptures || rng.NextDouble() < 0.35)
+        // Keep an unfinished bombing or ferry job while it's still valid, rather than re-deciding (with random
+        // factors) on every planning step and never finishing anything. A conquest threat overrides old bombing jobs.
+        int canTake = Math.Max(GameWorld.BombFloor, me.Stats.ArmyCapacity - 1);
+        if (Mode == BotMode.Bomb && planet is { } bombing && bombing.Owner != me.Team && bombing.Armies > GameWorld.BombFloor
+            && (ConquestThreat is not { } threat || bombing.Owner == threat))
+            return;
+        if (Mode == BotMode.Ferry && planet is { } source && source.Owner == me.Team && source.Armies >= 4
+            && me.Armies < me.Stats.ArmyCapacity && w.Planets.Any(pl => pl.Owner != me.Team && pl.Armies <= canTake))
+            return;
+
+        // Admirals coordinate: while more allies are bombing than are bringing armies, go and fetch armies.
+        if (P.CoordinatesInvasions)
         {
-            int canTake = Math.Max(GameWorld.BombFloor, me.Stats.ArmyCapacity - 1);
-            if (w.Planets.Any(pl => pl.Owner != me.Team && pl.Armies <= canTake))
+            var allies = Allies().ToList();
+            int bombers = allies.Count(a => a.Brain!.Mode == BotMode.Bomb);
+            int carriers = allies.Count(a => a.Brain!.Mode is BotMode.Ferry or BotMode.Capture || a.Armies > 0);
+            if (bombers > carriers && NearestPlanet(pl => pl.Owner == me.Team && pl.Armies >= 4) is { } armySource)
             {
-                var src = NearestPlanet(pl => pl.Owner == me.Team && pl.Armies >= 4);
-                if (src != null)
-                {
-                    Mode = BotMode.Ferry;
-                    planet = src;
-                    return;
-                }
+                Mode = BotMode.Ferry;
+                planet = armySource;
+                return;
             }
         }
 
-        var bomb = Best(w.Planets.Where(pl => pl.Owner != me.Team && pl.Armies > GameWorld.BombFloor),
-            pl => Dist(pl.Pos) + pl.Armies * 60 + rng.Next(2500) + (pl.Owner == Team.Neutral ? 1500 : 0));
+        // Ferrying armies and bombing are both options; the race's doctrine decides how often to ferry when both
+        // are available. Lower difficulty levels ferry half as often.
+        var ferrySource = w.Planets.Any(pl => pl.Owner != me.Team && pl.Armies <= canTake)
+            ? NearestPlanet(pl => pl.Owner == me.Team && pl.Armies >= 4)
+            : null;
+        var bomb = Best(CampaignTargets().Where(pl => pl.Armies > GameWorld.BombFloor),
+            pl => Dist(pl.Pos) + pl.Armies * 60 + rng.Next(2500) + (pl.Owner == Team.Neutral ? 1500 : 0) + RaidPenalty(pl));
+        double ferryChance = p.StrategicCaptures ? doctrine.FerryChance : doctrine.FerryChance * 0.5;
+        bool ferry = ferrySource != null && (bomb == null || rng.NextDouble() < ferryChance);
+
+        if (ferry)
+        {
+            Mode = BotMode.Ferry;
+            planet = ferrySource;
+            return;
+        }
         if (bomb != null)
         {
             Mode = BotMode.Bomb;
@@ -150,6 +241,7 @@ public sealed class BotBrain
     Ship? PickEnemy()
     {
         var p = P;
+        var dc = doctrine;
         Ship? best = null;
         double bestScore = double.MaxValue;
         foreach (var s in w.Ships)
@@ -157,17 +249,50 @@ public sealed class BotBrain
             if (!s.Alive || s.Team == me.Team || !w.CanSee(me, s)) continue;
             double d = Dist(s.Pos);
             bool raidingUs = s.Orbiting?.Owner == me.Team;
-            double reach = p.Level >= 4 && raidingUs ? 5000 : p.EngageRange;
+            double reach = p.Level >= 4 && raidingUs ? 5000 : p.EngageRange * dc.EngageRangeScale;
             if (d > reach) continue;
 
-            double score = d - s.HullFraction * 400;
-            if (s.Armies > 0) score -= 800;
+            // Doctrine filters: light ships skip healthy, better-armed targets; slow ships don't chase faster ones.
+            if (dc.AvoidsEvenFights && s.Armies == 0 && !raidingUs && s.HullFraction < 0.3
+                && Firepower(s) > Firepower(me) * 1.05) continue;
+            if (dc.ChaseLimit > 0 && !raidingUs && s.Stats.MaxWarp > me.Stats.MaxWarp && d > dc.ChaseLimit && PullingAway(s)) continue;
+
+            double score = d - s.HullFraction * dc.DamagedTargetWeight;
+            if (s.Armies > 0) score -= dc.CarrierTargetWeight;
             if (s == me.LastAttacker && w.Tick - me.LastAttackTick < 90) score -= 500;
-            if (raidingUs && p.Level >= 4) score -= 1500;
+            if (raidingUs) score -= dc.DefendBonus + (p.Level >= 4 ? 1500 : 0);
+            if (dc.LoneChasePenalty > 0 && FarFromFriends(s.Pos, 2500)) score += dc.LoneChasePenalty;
+            if (dc.OpenSpacePenalty > 0 && w.Planets.All(pl => (pl.Pos - s.Pos).Length > 2000)) score += dc.OpenSpacePenalty;
+
+            // Commander and above: gang up on the enemy allies are already attacking, on damaged ships and carriers,
+            // and on the ships of an empire close to winning by conquest.
+            if (p.FocusFire)
+            {
+                score -= 400 * Math.Min(3, Allies().Count(a => a.Brain!.Target == s));
+                score -= s.HullFraction * 400;
+                if (s.Armies > 0) score -= 400;
+            }
+            if (ConquestThreat is { } leader && s.Team == leader) score -= 600;
+
             if (score < bestScore) { bestScore = score; best = s; }
         }
         return best;
     }
+
+    static double Firepower(Ship s) => s.Stats.PhaserDamage + s.Stats.TorpDamage;
+
+    /// <summary>True when the distance to <paramref name="s"/> is growing.</summary>
+    bool PullingAway(Ship s) => (s.Velocity - me.Velocity) * (s.Pos - me.Pos) > 0;
+
+    /// <summary>True when no friendly world or other friendly ship is within <paramref name="radius"/> of a point.</summary>
+    bool FarFromFriends(Vector pos, double radius) =>
+        w.Planets.All(pl => pl.Owner != me.Team || (pl.Pos - pos).Length > radius)
+        && w.Ships.All(s => s == me || !s.Alive || s.Team != me.Team || (s.Pos - pos).Length > radius);
+
+    /// <summary>Raiders (Orion doctrine) avoid worlds with enemy ships nearby, so they hit the poorly defended rear.</summary>
+    double RaidPenalty(Planet pl) => !doctrine.RaidsRear
+        ? 0
+        : 1500 * w.Ships.Count(s => s.Alive && s.Team != me.Team && w.CanSee(me, s) && (s.Pos - pl.Pos).Length < 1500);
 
     Ship? NearestEnemy(out double dist)
     {
@@ -225,9 +350,16 @@ public sealed class BotBrain
         // Decided after moving and firing so orbit and weapon state are current for this tick.
         if (me.Stats.CanCloak && p.UsesCloak) ManageCloak(td);
 
-        // Applied last so it overrides every other steering decision, including dodges.
+        // Applied last so it overrides every other steering decision, including dodges. Checks the ship's actual
+        // heading too: a ship still turning can be flying at the edge even while it wants to go somewhere safe.
         if (me.Orbiting == null)
-            w.SetCourse(me, AvoidEdges(me.Pos, me.DesiredHeading, Math.Max(me.Warp, me.DesiredWarp) * GameWorld.WarpUnit));
+        {
+            double speed = Math.Max(me.Warp, me.DesiredWarp) * GameWorld.WarpUnit;
+            double course = AvoidEdges(me.Pos, me.DesiredHeading, speed);
+            double fromActual = AvoidEdges(me.Pos, me.Heading, speed);
+            if (fromActual != me.Heading) course = fromActual;
+            w.SetCourse(me, course);
+        }
     }
 
     /// <summary>
@@ -292,21 +424,48 @@ public sealed class BotBrain
         }
         var rel = t.Pos - me.Pos;
         double d = rel.Length, bearing = Geo.AngleOf(rel), max = me.EffectiveMaxWarp;
-        double course, warp;
-        if (d > 900)
+        bool targetFaster = t.Stats.MaxWarp > me.Stats.MaxWarp;
+        bool targetAttackingUs = t.Orbiting?.Owner == me.Team;
+
+        // Slow ships (Romulan doctrine) give up on faster ships that pull away.
+        if (doctrine.ChaseLimit > 0 && targetFaster && d > doctrine.ChaseLimit && !targetAttackingUs && PullingAway(t))
         {
-            course = P.LeadTargets ? Geo.LeadAngle(me.Pos, t.Pos, t.Velocity, max * GameWorld.WarpUnit) : bearing;
-            warp = max;
+            target = null;
+            Mode = BotMode.Idle;
+            thinkTimer = 0;
+            return;
         }
-        else if (d > 400)
+
+        double course, warp;
+        if (doctrine.HitAndRun && t.Stats.MaxWarp < me.Stats.MaxWarp)
         {
-            course = bearing + side * 30;
-            warp = Math.Max(3, max * 0.65);
+            // Hold just outside the slower ship's phaser range and harass it with torpedoes.
+            // Slows and spirals in on approach so it doesn't overshoot into the target's range.
+            double standoff = t.Stats.PhaserRange + 80;
+            if (d < standoff) { course = bearing + 180 + side * 30; warp = max; }
+            else if (d > standoff + 600) { course = bearing + side * 20; warp = max * 0.8; }
+            else if (d > standoff + 150) { course = bearing + side * 60; warp = Math.Max(3, max * 0.6); }
+            else { course = bearing + side * 100; warp = Math.Max(3, max * 0.7); }
         }
         else
         {
-            course = bearing + side * 110;
-            warp = Math.Max(3, max * 0.75);
+            // Close in, then circle at the doctrine's preferred fighting distance.
+            double range = doctrine.FightRange;
+            if (d > range + 500)
+            {
+                course = P.LeadTargets ? Geo.LeadAngle(me.Pos, t.Pos, t.Velocity, max * GameWorld.WarpUnit) : bearing;
+                warp = max;
+            }
+            else if (d > range)
+            {
+                course = bearing + side * 30;
+                warp = Math.Max(3, max * 0.65);
+            }
+            else
+            {
+                course = bearing + side * 110;
+                warp = Math.Max(3, max * 0.75);
+            }
         }
         w.SetCourse(me, course);
         w.SetWarp(me, warp);

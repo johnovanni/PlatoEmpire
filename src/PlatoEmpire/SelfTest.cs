@@ -46,7 +46,7 @@ public static class SelfTest
         return sb.ToString();
     }
 
-    sealed record Outcome(bool Finished, bool ByConquest, double Minutes, int Eliminated, int Captures, int PeakWorlds, int PeakShips);
+    sealed record Outcome(bool Finished, bool ByConquest, double Minutes, int Eliminated, int Captures, int PeakWorlds, int PeakShips, bool RivalsWon, int PlayerWorlds);
 
     /// <summary>
     /// Compares rules: the same seeds and difficulty levels played under each fleet rule.
@@ -57,8 +57,9 @@ public static class SelfTest
         int maxTicks = GameWorld.TicksPerSecond * 60 * minutes;
         var sb = new StringBuilder();
         sb.AppendLine($"Bot-only games, 4 empires x 4 ships, {seedsPerLevel} seeds per level, {minutes}-minute limit, conquest at 60%.");
+        sb.AppendLine("The autopilot player's side always flies at Lieutenant; \"level\" is the rivals' difficulty.");
         sb.AppendLine();
-        sb.AppendLine("fleet rule  level       finished  conquest  elim'd  avg-min  captures  peak-worlds  peak-ships");
+        sb.AppendLine("fleet rule  level       finished  rivals-won  your-worlds  conquest  elim'd  avg-min  captures  peak-worlds  peak-ships");
 
         foreach (var rule in new[] { FleetRule.Fixed, FleetRule.ScaleWithWorlds })
         {
@@ -97,14 +98,14 @@ public static class SelfTest
         }
         bool finished = world.Result != GameResult.None;
         return new Outcome(finished, finished && world.EndReason.Contains("conquered"),
-            world.Tick / (double)GameWorld.TicksPerSecond / 60, world.Eliminated.Count, captures, peak, peakShips);
+            world.Tick / (double)GameWorld.TicksPerSecond / 60, world.Eliminated.Count, captures, peak, peakShips, world.Result == GameResult.Defeat, world.Planets.Count(p => p.Owner == world.PlayerTeam));
     }
 
     static string Row(string rule, string label, List<Outcome> games)
     {
         var done = games.Where(g => g.Finished).ToList();
         string avgMin = done.Count > 0 ? done.Average(g => g.Minutes).ToString("0.0") : "-";
-        return $"{rule,-11} {label,-12} {done.Count,3}/{games.Count,-4} {games.Count(g => g.ByConquest),6}  " +
+        return $"{rule,-11} {label,-12} {done.Count,3}/{games.Count,-4} {games.Count(g => g.RivalsWon),10}  {games.Average(g => g.PlayerWorlds),11:0.0}  {games.Count(g => g.ByConquest),8}  " +
                $"{games.Average(g => g.Eliminated),6:0.0}  {avgMin,7}  {games.Average(g => g.Captures),8:0.0}  {games.Average(g => g.PeakWorlds),11:0.0}  {games.Average(g => g.PeakShips),10:0.0}";
     }
 
@@ -149,6 +150,41 @@ public static class SelfTest
         sb.AppendLine("race         wins  avg-worlds-at-end  eliminated");
         foreach (var t in RaceStats.Empires)
             sb.AppendLine($"{t,-12} {wins[t],4}  {worlds[t] / games,17:0.0}  {eliminated[t],10}");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Difficulty ladder (ISS-002): one-on-one games, the autopilot player's side (always Lieutenant) against a single
+    /// rival empire at each level, equal ships, rotating races. Harder levels should win more.
+    /// </summary>
+    public static string DifficultyLadder(int gamesPerLevel = 16, int minutes = 30)
+    {
+        int maxTicks = GameWorld.TicksPerSecond * 60 * minutes;
+        var sb = new StringBuilder();
+        sb.AppendLine($"One-on-one games: your side (Lieutenant) vs one rival empire, 4 ships each, {gamesPerLevel} games per level, {minutes}-minute limit.");
+        sb.AppendLine();
+        sb.AppendLine("rival level   rival-wins  your-wins  your-worlds  rival-worlds");
+        foreach (var level in DifficultyProfile.Levels)
+        {
+            int rivalWins = 0, playerWins = 0;
+            double playerWorlds = 0, rivalWorlds = 0;
+            for (int g = 0; g < gamesPerLevel; g++)
+            {
+                var world = new GameWorld(new GameSettings
+                {
+                    Seed = 9000 + g, PlayerAutopilot = true, PlayerTeam = RaceStats.Empires[g % 4], Opponents = 1,
+                    ShipsPerEmpire = 4, AlliedBots = 3, Difficulty = level.Level,
+                });
+                while (world.Result == GameResult.None && world.Tick < maxTicks) world.Step();
+                var rival = world.ActiveTeams.First(t => t != world.PlayerTeam);
+                playerWorlds += world.Planets.Count(p => p.Owner == world.PlayerTeam);
+                rivalWorlds += world.Planets.Count(p => p.Owner == rival);
+                if (world.Result == GameResult.Defeat) rivalWins++;
+                if (world.Result == GameResult.Victory) playerWins++;
+            }
+            sb.AppendLine($"{level.Level} {level.Name,-11} {rivalWins,6}/{gamesPerLevel,-3} {playerWins,6}/{gamesPerLevel,-3} " +
+                          $"{playerWorlds / gamesPerLevel,11:0.0}  {rivalWorlds / gamesPerLevel,12:0.0}");
+        }
         return sb.ToString();
     }
 

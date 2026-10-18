@@ -98,11 +98,15 @@ Status key: ✅ matches the original · ⚠️ partly matches · ❌ differs fro
 
 ## Added in this recreation (not in the original)
 
-- **Single-player bots** with five difficulty levels, changeable mid-game.
+- **Single-player bots** with five difficulty levels, changeable mid-game. Difficulty changes tactics, not weapon
+  damage (ISS-002): Commanders and Admirals focus fire and gang up on an empire close to conquest, and Admirals
+  coordinate invasions.
 - **Conquest share** win condition (60/75/90% held for 30 seconds), as an alternative to taking every planet.
 - **Grow & shrink fleets** (optional): fleet size follows the worlds an empire holds.
 - **Mouse control**, a galaxy map you can click, and zoom.
 - **Bots steering away from the galaxy edge.**
+- **Race doctrines for bots** (ISS-001): each race's bots play to their ship's strengths. Federation: steady line;
+  Klingon: aggressive hunter; Romulan: ambush and siege; Orion: raider and transport.
 
 ## Race balance testing
 
@@ -120,6 +124,19 @@ bot at the same skill (Lieutenant), rotating which race the autopilot flies. Res
 "Worlds" is the average held when the game ended. Changes made: Romulan energy 1100 → 1000, regeneration
 2.5 → 2.4, shields 110 → 100, phasers 38 → 35, torpedoes 32 → 26; Orion phasers 26 → 28, torpedoes 18 → 20.
 
-Orions are still the weakest. In the original's tournaments they usually won, likely because human players
-exploited their speed. The bots don't use speed tactically, so Orion strength in this recreation is limited by
-the AI as much as by the numbers.
+Orions were still the weakest after that tuning. In the original's tournaments they usually won, likely because
+human players exploited their speed, while the bots didn't use speed tactically at all.
+
+**Race doctrines (ISS-001)** then gave each race's bots their own play style: Orions ferry armies, hit and run,
+raid and hunt troop carriers; Federation ships lead bombing and defend; Klingons hunt damaged ships and carriers;
+Romulans ambush, besiege and don't chase faster ships. Result with the same 40 games:
+
+| Race | Before doctrines | With doctrines (current) |
+|---|---|---|
+| Romulan | 2 wins, 7.1 worlds | 6.6 worlds |
+| Federation | 1 win, 6.0 worlds | 6.4 worlds |
+| Klingon | 1 win, 6.8 worlds | 6.3 worlds |
+| Orion | 0 wins, 3.7 worlds, eliminated 2× | 4.8 worlds, never eliminated |
+
+The races are now close, but none of the 40 games finished within 40 minutes: evenly matched bot empires rarely
+break through. Orions are still last, though much closer.

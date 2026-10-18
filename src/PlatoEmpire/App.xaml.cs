@@ -30,6 +30,13 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // PlatoEmpire.exe --difficulty [report.txt]  one-on-one games against each difficulty level.
+        if (e.Args.Length > 0 && e.Args[0] == "--difficulty")
+        {
+            File.WriteAllText(e.Args.Length > 1 ? e.Args[1] : "difficulty.txt", SelfTest.DifficultyLadder());
+            Shutdown();
+            return;
+        }
         if (e.Args.Length > 1 && e.Args[0] == "--snapshot")
         {
             SelfTest.Snapshot(e.Args[1]);

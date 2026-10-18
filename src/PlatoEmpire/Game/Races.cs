@@ -37,7 +37,9 @@ public sealed class RaceStats
             Description = "Balanced heavy cruiser. Medium speed and firepower, strong shields, carries 6 armies.",
             ShipNames = ["Enterprise", "Excalibur", "Lexington", "Hood", "Potemkin", "Yorktown", "Intrepid", "Constellation",
                          "Constitution", "Defiant", "Exeter", "Farragut", "Republic", "Valiant", "Kongo", "Eagle",
-                         "Endeavour", "Essex", "Saratoga", "Reliant"],
+                         "Endeavour", "Essex", "Saratoga", "Reliant", "Ahwahnee", "Bozeman", "Challenger", "Columbia",
+                         "Discovery", "Excelsior", "Gettysburg", "Hathaway", "Horatio", "Lakota", "Melbourne", "Merrimac",
+                         "Monitor", "Pegasus", "Princeton", "Stargazer", "Sutherland", "Thunderchild", "Venture"],
             PlanetNames = ["Earth", "Vulcan", "Andor", "Tellar", "Centauri"],
             MaxWarp = 8, TurnRate = 6, Accel = 0.15, MaxEnergy = 1000, EnergyRegen = 2.4,
             MaxHull = 100, MaxShield = 100, PhaserDamage = 32, PhaserRange = 700,
@@ -49,7 +51,9 @@ public sealed class RaceStats
             Description = "Battlecruiser. Federation-class speed and firepower; nimbler, with lighter shields.",
             ShipNames = ["Gr'oth", "Klothos", "Devisor", "Fek'lhr", "Kor", "Kang", "Koloth", "Kumara",
                          "Amar", "B'Moth", "Bortas", "Ch'Tang", "Hegh'ta", "Gorkon", "K'mpec", "Negh'Var",
-                         "Pagh", "Rotarran", "Vor'cha", "Qaw'qay"],
+                         "Pagh", "Rotarran", "Vor'cha", "Qaw'qay", "Buruk", "Ch'Tak", "Drovana", "Hor'Cha",
+                         "Kla'Diyus", "Koraga", "Ki'tang", "M'Char", "Malpara", "Maht-H'a", "Ning'tao", "Orantho",
+                         "Qu'Vat", "Toh'Kaht", "Vorn", "Y'tem", "T'Ong", "Sompek", "K'Vort"],
             PlanetNames = ["Qo'noS", "Kaleb", "Morath", "Tarsus", "Hakon"],
             MaxWarp = 8, TurnRate = 7, Accel = 0.18, MaxEnergy = 1000, EnergyRegen = 2.4,
             MaxHull = 100, MaxShield = 90, PhaserDamage = 32, PhaserRange = 700,
@@ -61,7 +65,9 @@ public sealed class RaceStats
             Description = "Bird of Prey. The slowest ship, with the strongest phasers and plasma torpedoes. Can cloak (C).",
             ShipNames = ["Praetor", "Vreenak", "Decius", "Khazara", "Haakona", "Terix", "Belak", "Valdore",
                          "Devoras", "Genorex", "Goraxus", "T'Met", "Talvath", "D'deridex", "Tomed", "Thrai",
-                         "Rateg", "Mogai", "Norexan", "Vastam"],
+                         "Rateg", "Mogai", "Norexan", "Vastam", "Aj'rmr", "Belhok", "Dividices", "Eletrix",
+                         "Erinhe", "Hrrhaen", "Ihaekh", "Llaiir", "Mhiessan", "Narada", "Rhien", "Vrax",
+                         "Lleiset", "Khellian", "Ra'Kal", "Hnaev", "Tlaru", "Siuren", "Tal'Rihan"],
             PlanetNames = ["Romulus", "Remus", "Achernar", "Eridani", "Aldebaran"],
             MaxWarp = 7, TurnRate = 5, Accel = 0.12, MaxEnergy = 1000, EnergyRegen = 2.4,
             MaxHull = 95, MaxShield = 100, PhaserDamage = 35, PhaserRange = 650,
@@ -73,7 +79,9 @@ public sealed class RaceStats
             Description = "Pirate raider. The fastest and most agile ship, with the weakest weapons. Carries 8 armies.",
             ShipNames = ["Corsair", "Marauder", "Raider", "Buccaneer", "Privateer", "Freebooter", "Brigand", "Rover",
                          "Reaver", "Plunderer", "Cutlass", "Scimitar", "Jackal", "Viper", "Harrier", "Vulture",
-                         "Rogue", "Smuggler", "Blackjack", "Cutthroat"],
+                         "Rogue", "Smuggler", "Blackjack", "Cutthroat", "Barracuda", "Blackbird", "Cobra", "Desperado",
+                         "Falchion", "Hellcat", "Highwayman", "Interloper", "Kestrel", "Mongoose", "Outlaw", "Predator",
+                         "Prowler", "Ravager", "Renegade", "Sabre", "Shrike", "Stiletto", "Wolverine"],
             PlanetNames = ["Orion", "Rigel", "Antares", "Betelgeuse", "Deneb"],
             MaxWarp = 9, TurnRate = 8, Accel = 0.22, MaxEnergy = 850, EnergyRegen = 2.6,
             MaxHull = 85, MaxShield = 85, PhaserDamage = 28, PhaserRange = 650,
@@ -88,4 +96,25 @@ public sealed class RaceStats
     };
 
     public static RaceStats For(Team t) => All[t];
+
+    /// <summary>
+    /// Name for this race's <paramref name="number"/>th ship (1-based). If a fleet ever outgrows the name list, names
+    /// are reused with Roman numerals: the 40th Federation ship is "Enterprise II", the 79th "Enterprise III".
+    /// </summary>
+    public string ShipName(int number)
+    {
+        int index = (number - 1) % ShipNames.Length, round = (number - 1) / ShipNames.Length;
+        return round == 0 ? ShipNames[index] : $"{ShipNames[index]} {ToRoman(round + 1)}";
+    }
+
+    public static string ToRoman(int value)
+    {
+        (int Value, string Numeral)[] numerals =
+            [(1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"),
+             (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")];
+        var sb = new System.Text.StringBuilder();
+        foreach (var (v, numeral) in numerals)
+            for (; value >= v; value -= v) sb.Append(numeral);
+        return sb.ToString();
+    }
 }

@@ -11,4 +11,8 @@
     <Product>Empire (PLATO recreation)</Product>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="PlatoEmpire.Tests" />
+  </ItemGroup>
+
 </Project>

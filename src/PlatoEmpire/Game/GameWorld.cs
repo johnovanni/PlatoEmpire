@@ -147,7 +147,7 @@ public sealed class GameWorld
         int n = shipsBuilt.GetValueOrDefault(team) + 1;
         shipsBuilt[team] = n;
         var stats = RaceStats.For(team);
-        var ship = new Ship(Ships.Count, team, $"{stats.Letter}{n}", stats.ShipNames[(n - 1) % stats.ShipNames.Length], isPlayer);
+        var ship = new Ship(Ships.Count, team, $"{stats.Letter}{n}", stats.ShipName(n), isPlayer);
         if (!isPlayer || Settings.PlayerAutopilot) ship.Brain = new BotBrain(this, ship, Rng.Next());
         Ships.Add(ship);
         return ship;
@@ -236,7 +236,7 @@ public sealed class GameWorld
             Pos = s.Pos + dir * TorpedoHitRadius,
             Vel = dir * s.Stats.TorpSpeed,
             Life = s.Stats.TorpLife,
-            Damage = s.Stats.TorpDamage * DamageMultiplier(s),
+            Damage = s.Stats.TorpDamage,
         });
         return true;
     }
@@ -268,11 +268,9 @@ public sealed class GameWorld
         var end = best?.Pos ?? s.Pos + dir * range;
         Beams.Add(new Beam(s.Pos, end, s.Team, 8, false));
         if (best != null)
-            ApplyDamage(best, s.Stats.PhaserDamage * DamageMultiplier(s) * (1 - 0.6 * bestAlong / range), s, null);
+            ApplyDamage(best, s.Stats.PhaserDamage * (1 - 0.6 * bestAlong / range), s, null);
         return true;
     }
-
-    double DamageMultiplier(Ship s) => s.Brain != null && s.Team != PlayerTeam ? Difficulty.DamageMultiplier : 1.0;
 
     public bool EnterOrbit(Ship s)
     {
@@ -507,8 +505,10 @@ public sealed class GameWorld
     }
 
     /// <summary>
-    /// Under <see cref="FleetRule.ScaleWithWorlds"/>, an empire below its fleet limit with no destroyed ships waiting
-    /// to return builds one new ship every <see cref="ShipyardTicks"/>.
+    /// Under <see cref="FleetRule.ScaleWithWorlds"/>, an empire whose fleet is below its limit builds one new ship
+    /// every <see cref="ShipyardTicks"/>. The fleet counts every ship the empire owns, flying or not: destroyed ships
+    /// waiting to return, including stranded ones whose empire had no worlds, come back instead of being replaced
+    /// (ISS-005).
     /// </summary>
     void RunShipyards()
     {
@@ -516,9 +516,8 @@ public sealed class GameWorld
         foreach (var team in ActiveTeams)
         {
             if (Eliminated.Contains(team) || !Planets.Any(p => p.Owner == team)) continue;
-            int inService = Ships.Count(s => s.Team == team && (s.Alive || !s.Stranded));
             int cap = FleetCap(team);
-            if (inService >= cap) continue;
+            if (FleetSize(team) >= cap) continue;
 
             var ship = AddShip(team, false);
             TryRespawn(ship, announce: false);

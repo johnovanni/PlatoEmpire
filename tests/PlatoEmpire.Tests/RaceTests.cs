@@ -49,11 +49,49 @@ public class RaceTests
     [InlineData(Team.Klingon)]
     [InlineData(Team.Romulan)]
     [InlineData(Team.Orion)]
-    public void Each_race_has_twenty_distinct_ship_names(Team team)
+    public void Each_race_has_enough_distinct_names_for_the_largest_possible_fleet(Team team)
     {
+        // The largest fleet: the most ships setup allows (values beyond the limits are clamped), holding every world.
+        var w = TestWorld.Quiet(s =>
+        {
+            s.Opponents = 3; s.ShipsPerEmpire = 1000; s.AlliedBots = 1000; s.FleetRule = FleetRule.ScaleWithWorlds;
+        });
+        foreach (var p in w.Planets) p.Owner = team;
+        int largestFleet = w.FleetCap(team);
+
         var names = RaceStats.For(team).ShipNames;
-        Assert.Equal(20, names.Length);
+        Assert.Equal(39, largestFleet);
+        Assert.True(names.Length >= largestFleet, $"{names.Length} names for a fleet of up to {largestFleet}");
         Assert.Equal(names.Length, names.Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData(1, "Enterprise")]
+    [InlineData(39, "Venture")]
+    [InlineData(40, "Enterprise II")]
+    [InlineData(41, "Excalibur II")]
+    [InlineData(78, "Venture II")]
+    [InlineData(79, "Enterprise III")]
+    [InlineData(118, "Enterprise IV")]
+    public void Names_are_reused_with_Roman_numerals_once_the_list_runs_out(int shipNumber, string expected) =>
+        Assert.Equal(expected, RaceStats.For(Team.Federation).ShipName(shipNumber));
+
+    [Theory]
+    [InlineData(1, "I")]
+    [InlineData(4, "IV")]
+    [InlineData(9, "IX")]
+    [InlineData(14, "XIV")]
+    [InlineData(40, "XL")]
+    [InlineData(1994, "MCMXCIV")]
+    public void Roman_numerals_are_formed_correctly(int value, string expected) =>
+        Assert.Equal(expected, RaceStats.ToRoman(value));
+
+    [Fact]
+    public void Every_ship_name_in_a_huge_fleet_is_unique()
+    {
+        var race = RaceStats.For(Team.Romulan);
+        var names = Enumerable.Range(1, race.ShipNames.Length * 5).Select(race.ShipName).ToList();
+        Assert.Equal(names.Count, names.Distinct().Count());
     }
 
     [Fact]

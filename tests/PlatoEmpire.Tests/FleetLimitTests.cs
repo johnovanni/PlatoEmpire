@@ -214,6 +214,46 @@ public class FleetLimitTests
         Assert.Equal(Fleet, w.FleetSize(rival));
     }
 
+    [Fact]
+    public void Capturing_a_world_on_a_shipyard_tick_revives_a_stranded_ship_instead_of_building_one()
+    {
+        // ISS-005. An empire that started with 8 ships has lost every world: 7 ships are destroyed and stranded, and
+        // the last one (updated after them each tick) is in orbit about to capture a world. Holding 1 world allows
+        // 2 ships, so one stranded ship should return; no new ship should be built.
+        var w = TestWorld.Quiet(s => { s.ShipsPerEmpire = 8; s.FleetRule = FleetRule.ScaleWithWorlds; });
+        var rival = TestWorld.Rival(w);
+        var fleet = w.Ships.Where(s => s.Team == rival).ToList();
+        var capturer = fleet[^1];
+        foreach (var p in w.Planets.Where(p => p.Owner == rival)) p.Owner = Team.Neutral;
+        foreach (var s in fleet.Take(fleet.Count - 1))
+        {
+            s.Alive = false;
+            s.Stranded = true;
+            s.RespawnTimer = 0;
+        }
+
+        var target = w.Planets.First(p => p.Owner == Team.Neutral && p.Origin == Team.Neutral);
+        target.Armies = 0;
+        TestWorld.Orbit(w, capturer, target);
+        capturer.Armies = 1;
+
+        // Run up to the tick before a shipyard tick, then time the beam-down to land exactly on it.
+        TestWorld.Run(w, GameWorld.ShipyardTicks - 1);
+        Assert.Equal(0, w.Planets.Count(p => p.Owner == rival));
+        capturer.Action = OrbitAction.BeamDown;
+        capturer.ActionTimer = GameWorld.OrbitActionInterval - 1;
+
+        w.Step();
+        Assert.Equal(0, w.Tick % GameWorld.ShipyardTicks);
+        Assert.Equal(rival, target.Owner);
+        Assert.Equal(2, w.FleetCap(rival));
+        Assert.Equal(fleet.Count, w.FleetSize(rival));   // no new ship built
+
+        TestWorld.Run(w, 30);
+        Assert.Equal(2, w.AliveShips(rival));            // a stranded ship came back instead
+        Assert.Equal(fleet.Count, w.FleetSize(rival));
+    }
+
     // ------------------------------------------------------------------ the player
 
     [Fact]

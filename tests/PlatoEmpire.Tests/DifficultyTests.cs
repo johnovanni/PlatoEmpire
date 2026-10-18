@@ -23,8 +23,12 @@ public class DifficultyTests
             Assert.True(harder.ReactionTicks < easier.ReactionTicks, $"{harder.Name} reaction");
             Assert.True(harder.AimErrorDeg < easier.AimErrorDeg, $"{harder.Name} aim");
             Assert.True(harder.FireChance > easier.FireChance, $"{harder.Name} fire chance");
-            Assert.True(harder.DamageMultiplier > easier.DamageMultiplier, $"{harder.Name} damage");
-            Assert.True(harder.EngageRange > easier.EngageRange, $"{harder.Name} engage range");
+            // Engagement range stops growing at Lieutenant: chasing distant ships made higher levels capture less (ISS-002).
+            Assert.True(harder.EngageRange >= easier.EngageRange, $"{harder.Name} engage range");
+            Assert.True(harder.DoctrineStrength >= easier.DoctrineStrength, $"{harder.Name} doctrine strength");
+            Assert.True(!easier.FocusFire || harder.FocusFire, $"{harder.Name} focus fire");
+            Assert.True(!easier.RespondsToConquest || harder.RespondsToConquest, $"{harder.Name} conquest response");
+            Assert.True(!easier.CoordinatesInvasions || harder.CoordinatesInvasions, $"{harder.Name} coordination");
         }
     }
 
@@ -56,15 +60,22 @@ public class DifficultyTests
 
     [Theory]
     [InlineData(1)]
+    [InlineData(3)]
     [InlineData(5)]
-    public void Enemy_bot_weapons_scale_with_difficulty(int level)
+    public void Bot_weapons_do_the_same_damage_at_every_level(int level)
     {
+        // ISS-002: difficulty changes how bots play, never how hard their weapons hit.
         var w = TestWorld.Create(s => s.Difficulty = level);
         var enemy = TestWorld.Enemy(w);
+        var space = TestWorld.DeepSpace(w);
+        TestWorld.Park(enemy, space);
+        TestWorld.Park(w.Player, space + new System.Windows.Vector(300, 0));
 
         Assert.True(w.FireTorpedo(enemy, 0));
+        Assert.True(w.FirePhaser(enemy, 90));
 
-        Assert.Equal(enemy.Stats.TorpDamage * DifficultyProfile.Get(level).DamageMultiplier, w.Torpedoes[^1].Damage, 1e-9);
+        Assert.Equal(enemy.Stats.TorpDamage, w.Torpedoes[^1].Damage, 1e-9);
+        Assert.Equal(enemy.Stats.PhaserDamage * (1 - 0.6 * 300 / enemy.Stats.PhaserRange), w.Player.Hull, 1e-6);
     }
 
     [Fact]

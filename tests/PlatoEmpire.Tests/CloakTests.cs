@@ -11,9 +11,11 @@ public class CloakTests
     /// </summary>
     static (List<double> shots, bool hit) Encounter(bool cloaked, double range, int ticks = 600)
     {
-        var w = TestWorld.Quiet(s => s.PlayerTeam = Team.Romulan);
+        // A Klingon bot, since Orion bots deliberately avoid a healthy, better-armed Romulan.
+        var w = TestWorld.Quiet(s => { s.PlayerTeam = Team.Romulan; s.Opponents = 3; });
         var me = w.Player;
-        var bot = TestWorld.Enemy(w);
+        var bot = w.Ships.First(s => s.Team == Team.Klingon);
+        foreach (var s in w.Ships.Where(s => s != bot && !s.IsPlayer)) TestWorld.Remove(s);
         bot.Brain = new BotBrain(w, bot, seed: 1);
         var space = TestWorld.DeepSpace(w);
         TestWorld.Park(me, space);

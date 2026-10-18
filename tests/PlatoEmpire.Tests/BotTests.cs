@@ -72,10 +72,17 @@ public class BotTests
     [InlineData("east")]
     [InlineData("north")]
     [InlineData("south")]
-    public void Bot_fighting_a_target_on_the_edge_stays_off_the_edge(string wall)
+    [InlineData("west", Team.Orion)]
+    [InlineData("east", Team.Orion)]
+    [InlineData("north", Team.Orion)]
+    [InlineData("south", Team.Orion)]
+    public void Bot_fighting_a_target_on_the_edge_stays_off_the_edge(string wall, Team botRace = Team.Klingon)
     {
-        var w = TestWorld.Quiet();
-        var bot = TestWorld.Enemy(w);
+        // Klingons always attack. Orions only attack a damaged or slower ship, where they hit and run, so their
+        // target is a damaged Romulan.
+        var w = TestWorld.Quiet(s => { s.Opponents = 3; s.PlayerTeam = botRace == Team.Orion ? Team.Romulan : Team.Federation; });
+        var bot = w.Ships.First(s => s.Team == botRace);
+        foreach (var s in w.Ships.Where(s => s != bot && !s.IsPlayer)) TestWorld.Remove(s);
         bot.Brain = new BotBrain(w, bot, seed: 1);
         double size = GameWorld.GalaxySize, mid = size / 2;
         var (edge, inward) = wall switch
@@ -92,12 +99,13 @@ public class BotTests
         {
             // Pin the target against the wall and keep it alive so the bot keeps fighting there.
             w.Player.Pos = edge;
-            w.Player.Hull = 0;
+            w.Player.Hull = botRace == Team.Orion ? w.Player.Stats.MaxHull * 0.6 : 0;
+            bot.Energy = bot.Stats.MaxEnergy;   // this test is about the edge, so don't let it leave to refuel
             w.Step();
             if (bot.Alive) closest = Math.Min(closest, EdgeDistance(bot.Pos));
         }
 
-        Assert.Equal(BotMode.Fight, bot.Brain!.Mode);
+        Assert.True(bot.Brain!.Mode == BotMode.Fight, $"{bot.Team} bot is in {bot.Brain.Mode} mode, not fighting");
         Assert.True(closest >= BotBrain.EdgeBuffer, $"bot came within {closest:0} units of the {wall} edge");
     }
 
@@ -106,14 +114,21 @@ public class BotTests
     {
         var w = new GameWorld(new GameSettings { Seed = 11, PlayerAutopilot = true, Opponents = 3, ShipsPerEmpire = 6, AlliedBots = 5, Difficulty = 5 });
         double closest = double.MaxValue;
+        string who = "";
 
         for (int i = 0; i < GameWorld.TicksPerSecond * 60 * 5; i++)
         {
             w.Step();
-            foreach (var s in w.Ships.Where(s => s.Alive)) closest = Math.Min(closest, EdgeDistance(s.Pos));
+            foreach (var s in w.Ships.Where(s => s.Alive))
+            {
+                double d = EdgeDistance(s.Pos);
+                if (d >= closest) continue;
+                closest = d;
+                who = $"{s.Label} ({s.Team}, {s.Brain?.Mode}, warp {s.Warp:0.0}, heading {s.Heading:0}, orbiting {s.Orbiting?.Name ?? "-"}) at t={i}";
+            }
         }
 
-        Assert.True(closest >= BotBrain.EdgeBuffer, $"a bot came within {closest:0} units of the edge");
+        Assert.True(closest >= BotBrain.EdgeBuffer, $"a bot came within {closest:0} units of the edge: {who}");
     }
 
     [Theory]

@@ -11,18 +11,18 @@ classes in `tests/PlatoEmpire.Tests`.
 
 | ID | Title | Type | Status |
 |---|---|---|---|
-| [ISS-001](#iss-001-bots-dont-play-to-their-races-strengths) | Bots don't play to their race's strengths | Enhancement (balance) | Fixed (awaiting verification) |
-| [ISS-002](#iss-002-higher-difficulty-relies-on-a-damage-bonus-instead-of-smarter-play) | Higher difficulty relies on a damage bonus instead of smarter play | Enhancement | Fixed (awaiting verification) |
+| [ISS-001](#iss-001-bots-dont-play-to-their-races-strengths) | Bots don't play to their race's strengths | Enhancement (balance) | Closed |
+| [ISS-002](#iss-002-higher-difficulty-relies-on-a-damage-bonus-instead-of-smarter-play) | Higher difficulty relies on a damage bonus instead of smarter play | Enhancement | Closed |
 | [ISS-003](#iss-003-torpedo-detonation-area-damage-and-burst-fire-are-missing) | Torpedo detonation, area damage and burst fire are missing | Enhancement (fidelity) | Deferred |
-| [ISS-004](#iss-004-ship-names-can-repeat-in-large-grow--shrink-fleets) | Ship names can repeat in large Grow & shrink fleets | Change request | Fixed (awaiting verification) |
-| [ISS-005](#iss-005-shipyards-can-build-one-ship-past-the-fleet-limit) | Shipyards can build one ship past the fleet limit | Bug (minor) | Fixed (awaiting verification) |
+| [ISS-004](#iss-004-ship-names-can-repeat-in-large-grow--shrink-fleets) | Ship names can repeat in large Grow & shrink fleets | Change request | Closed |
+| [ISS-005](#iss-005-shipyards-can-build-one-ship-past-the-fleet-limit) | Shipyards can build one ship past the fleet limit | Bug (minor) | Closed |
 
 ---
 
 ## ISS-001: Bots don't play to their race's strengths
 
 - **Type:** Enhancement (balance)
-- **Status:** Fixed (awaiting verification). Approved and implemented 2026-10-17; awaiting a play-test.
+- **Status:** Closed 2026-10-17 at the user's request; released in v1.1.0. (Approved and implemented 2026-10-17.)
 - **Reported:** 2026-10-17, from the gameplay review. Originally raised for Orions only; widened on 2026-10-17 to
   cover all four races.
 
@@ -138,7 +138,7 @@ tip the balance; ISS-002 (smarter difficulty) may also change this.
 ## ISS-002: Higher difficulty relies on a damage bonus instead of smarter play
 
 - **Type:** Enhancement
-- **Status:** Fixed (awaiting verification). Approved 2026-10-17 to follow ISS-001; implemented 2026-10-17.
+- **Status:** Closed 2026-10-17 at the user's request; released in v1.1.0. (Approved 2026-10-17 to follow ISS-001; implemented 2026-10-17.)
 - **Reported:** 2026-10-17, from the gameplay review
 
 ### Problem
@@ -305,8 +305,8 @@ X and Shift+T avoid changing existing controls.
 ## ISS-004: Ship names can repeat in large Grow & shrink fleets
 
 - **Type:** Change request
-- **Status:** Fixed (awaiting verification). Approved 2026-10-17 with a change: beyond 39, reuse names with Roman
-  numerals.
+- **Status:** Closed 2026-10-17 at the user's request; released in v1.1.0. (Approved 2026-10-17 with a change:
+  beyond 39, reuse names with Roman numerals.)
 - **Reported:** 2026-10-17, by the user: "Can we generate 39 names for each race?"
 
 ### Problem
@@ -382,7 +382,7 @@ reused with Roman numerals. Item 3 (the shipyard gap) wasn't part of the approva
 ## ISS-005: Shipyards can build one ship past the fleet limit
 
 - **Type:** Bug (minor)
-- **Status:** Fixed (awaiting verification). Approved and fixed 2026-10-17.
+- **Status:** Closed 2026-10-17 at the user's request; released in v1.1.0. (Approved and fixed 2026-10-17.)
 - **Reported:** 2026-10-17, split out of ISS-004 (item 3)
 
 ### Problem

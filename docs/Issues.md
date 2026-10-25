@@ -16,6 +16,8 @@ classes in `tests/PlatoEmpire.Tests`.
 | [ISS-003](#iss-003-torpedo-detonation-area-damage-and-burst-fire-are-missing) | Torpedo detonation, area damage and burst fire are missing | Enhancement (fidelity) | Deferred |
 | [ISS-004](#iss-004-ship-names-can-repeat-in-large-grow--shrink-fleets) | Ship names can repeat in large Grow & shrink fleets | Change request | Closed |
 | [ISS-005](#iss-005-shipyards-can-build-one-ship-past-the-fleet-limit) | Shipyards can build one ship past the fleet limit | Bug (minor) | Closed |
+| [ISS-006](#iss-006-the-app-has-no-icon) | The app has no icon | Change request | Fixed (awaiting verification) |
+| [ISS-007](#iss-007-the-window-can-open-larger-than-the-screen-with-its-title-bar-out-of-reach) | The window can open larger than the screen, with its title bar out of reach | Bug | Fixed (awaiting verification) |
 
 ---
 
@@ -427,3 +429,120 @@ building a new one.
 - **Fix:** `GameWorld.RunShipyards` now counts every ship the empire owns, flying or not, so stranded ships count
   toward the fleet.
 - All 194 tests pass.
+
+---
+
+## ISS-006: The app has no icon
+
+- **Type:** Change request
+- **Status:** Open
+- **Reported:** 2026-10-25, while making icons for the qapow.com apps.
+
+### Problem
+
+The game shows the generic Windows icon in its title bar, on the taskbar and on `PlatoEmpire.exe` in Explorer. The
+owner wants an icon of a Federation ship drawn in orange on black, with its shields up and the saucer at the top.
+
+### Cause
+
+No icon was ever added: `PlatoEmpire.csproj` has no `ApplicationIcon`, and `MainWindow` has no `Icon`.
+
+### Affected
+
+- `src/PlatoEmpire/PlatoEmpire.csproj`: the exe icon.
+- `src/PlatoEmpire/MainWindow.xaml`: the title bar and taskbar icon.
+- No game behaviour, rules or documentation change.
+
+### Tests
+
+- **No test fails.** This is new artwork, not a rule violation.
+- **Test gap:** nothing checks that the app has an icon. It needs a check because a wrong resource path fails
+  silently: the window falls back to the generic icon.
+
+### Proposed fix
+
+- Add `src/PlatoEmpire/Assets/PlatoEmpire.ico`, which has 16, 24, 32, 48, 64, 128 and 256 px images. It is
+  rendered from an SVG drawing: a Federation ship in the game's plasma orange (`#FF9A1F`, glow `#FFD080`) on black,
+  saucer to the top, inside a dashed shield bubble. The SVG source sits next to the .ico for future edits.
+- Set `<ApplicationIcon>Assets\PlatoEmpire.ico</ApplicationIcon>` and add the file as a `<Resource>` in the csproj.
+- Set `Icon="Assets/PlatoEmpire.ico"` on `MainWindow`.
+
+### Acceptance
+
+- `PlatoEmpire.exe` shows the ship icon in Explorer, and the running game shows it in the title bar and taskbar.
+- A test fails if the icon resource cannot be loaded from the assembly.
+
+### Resolution
+
+- **Tests first:** `AppIconTests.Window_icon_is_embedded_with_every_size_from_16_to_256` loads
+  `assets/platoempire.ico` from the assembly's WPF resources and checks it decodes with 16 to 256 px images.
+  `AppIconTests.Exe_has_an_icon` checks that `PlatoEmpire.exe` carries a Win32 icon resource. Both **failed** before
+  the fix (no resource; no exe icon) and pass now.
+- **Fix:** added `Assets/PlatoEmpire.ico` (with its SVG source `Assets/PlatoEmpire.svg`), `ApplicationIcon` and a
+  `Resource` item in `PlatoEmpire.csproj`, and `Icon="Assets/PlatoEmpire.ico"` on `MainWindow`.
+- **Checked by running the game:** the ship icon shows on the exe, in the title bar and on the taskbar.
+- All 208 tests pass.
+- Released in v1.2.0.
+
+---
+
+## ISS-007: The window can open larger than the screen, with its title bar out of reach
+
+- **Type:** Bug
+- **Status:** Fixed (awaiting verification). Approved 2026-10-25 (with the request to start maximized).
+- **Reported:** 2026-10-25 by the owner: the main window sometimes opens too big for the screen and is hard to move.
+  The owner also asked for the game to start maximized.
+
+### Problem
+
+On screens with less than about 920 device-independent pixels of usable height, the window opens taller than the
+screen, and its title bar can end up above the top edge, so it can't be dragged. Examples are 1920×1080 at 125 %
+scaling (about 816 usable) or 150 % (about 680), and 1366×768 at 100 % (about 728). The window can't be shrunk to
+fit either, because its minimum size (1100×720) is also larger than some of these screens.
+
+### Cause
+
+`MainWindow.xaml` sets a fixed `Width="1440" Height="920"`, `MinWidth="1100" MinHeight="720"` and
+`WindowStartupLocation="CenterScreen"`. Centering a window taller than the work area gives it a negative top, and
+nothing limits the window to the screen.
+
+### Affected
+
+- `src/PlatoEmpire/MainWindow.xaml` and `MainWindow.xaml.cs`: startup window size, state and position.
+- No game behaviour changes. The game screen already lays itself out for any window size.
+
+### Tests
+
+- **No test fails.** **Test gap:** nothing checks the main window's startup state or that its size fits the screen.
+
+### Proposed fix
+
+- Start the window maximized (`WindowState="Maximized"`), as the owner asked.
+- Keep the normal (restored) size within the screen: in the constructor, limit `Width`/`Height` and
+  `MinWidth`/`MinHeight` to `SystemParameters.WorkArea`, and centre the window in the work area (CenterScreen centres
+  on the whole screen, so the taskbar can still cover the bottom). Then *Restore down* gives a window that is fully
+  visible, with a reachable title bar.
+
+### Acceptance
+
+- A test checks that the main window starts maximized.
+- A test checks that on a small work area (1280×680) the window's normal and minimum sizes fit inside it, and that
+  on a large one the designed 1440×920 size is kept.
+- A test checks that the restored window sits entirely inside the work area.
+- Running the game: it opens maximized, and *Restore down* gives a window that can be moved.
+
+### Resolution
+
+- **Tests first:** `MainWindowTests.Main_window_starts_maximized` and
+  `MainWindowTests.Normal_size_shrinks_to_fit_a_small_screen` **failed** before the fix (the window started `Normal`
+  at 1440×920). `Normal_size_is_kept_on_a_large_screen` passed before and after, as intended.
+- **Fix:** `MainWindow.xaml` sets `WindowState="Maximized"`. The constructor calls the new `MainWindow.FitTo`,
+  which limits the normal and minimum sizes to `SystemParameters.WorkArea`.
+- **Found while checking:** after *Restore down* on this PC (1920×1080 at 125 %), the title bar was reachable, but
+  the bottom 56 px sat behind the taskbar, because `CenterScreen` centres on the whole screen. `FitTo` now centres
+  the window in the work area itself. The test `Restored_window_sits_inside_the_work_area` was written with this
+  change, not before it.
+- **Checked by running the game:** it opens maximized, and *Restore down* gives a window at 0,0–1852,1012 physical
+  px inside the 1920×1020 work area.
+- All 212 tests pass.
+- Released in v1.2.0.

@@ -9,10 +9,15 @@
     <RootNamespace>PlatoEmpire</RootNamespace>
     <AssemblyName>PlatoEmpire</AssemblyName>
     <Product>Empire (PLATO recreation)</Product>
+    <ApplicationIcon>Assets\PlatoEmpire.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="PlatoEmpire.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\PlatoEmpire.ico" />
   </ItemGroup>
 
 </Project>

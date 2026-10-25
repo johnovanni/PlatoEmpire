@@ -80,6 +80,24 @@ public partial class MainWindow : Window
         };
 
         CompositionTarget.Rendering += OnRendering;
+        FitTo(this, SystemParameters.WorkArea);
+    }
+
+    /// <summary>
+    /// Keeps the normal (restored) size inside the screen, so a centred window never pushes its title bar
+    /// off the top on small or high-DPI screens (ISS-007).
+    /// </summary>
+    internal static void FitTo(Window window, Rect workArea)
+    {
+        window.MinWidth = Math.Min(window.MinWidth, workArea.Width);
+        window.MinHeight = Math.Min(window.MinHeight, workArea.Height);
+        window.Width = Math.Min(window.Width, workArea.Width);
+        window.Height = Math.Min(window.Height, workArea.Height);
+
+        // Centre in the work area ourselves: CenterScreen centres on the whole screen, taskbar included.
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = workArea.Left + (workArea.Width - window.Width) / 2;
+        window.Top = workArea.Top + (workArea.Height - window.Height) / 2;
     }
 
     // ------------------------------------------------------------------ setup screen

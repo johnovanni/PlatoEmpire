@@ -2,11 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:PlatoEmpire.UI"
-        Title="EMPIRE  -  0empire on PLATO, recreated"
+        Title="EMPIRE  -  0empire on PLATO, recreated" Icon="Assets/PlatoEmpire.ico"
         Width="1440" Height="920" MinWidth="1100" MinHeight="720"
         Background="Black" Foreground="{StaticResource Plasma}"
         FontFamily="Consolas" FontSize="13"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Grid>
         <!-- ===================== GAME SCREEN ===================== -->
